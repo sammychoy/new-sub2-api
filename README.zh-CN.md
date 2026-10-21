@@ -1,9 +1,18 @@
-# Sub2API on Cloudflare
+<div align="center">
+
+<img src="assets/banner.svg" alt="Sub2API on Cloudflare" width="100%">
 
 [English](README.md) · [繁體中文](README.zh-TW.md) · **简体中文**
 
-[![License: LGPL-3.0](https://img.shields.io/badge/License-LGPL--3.0-green.svg)](LICENSE)
-[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-F38020.svg)](https://developers.cloudflare.com/workers/)
+[![License](https://img.shields.io/badge/License-LGPL--3.0-blue?style=flat-square)](LICENSE)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)
+![D1](https://img.shields.io/badge/Cloudflare-D1-F38020?style=flat-square&logo=sqlite&logoColor=white)
+![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+
+[功能](#功能) · [本地运行](#本地运行) · [部署](#部署) · [免责声明](#免责声明)
+
+</div>
 
 [sub2api](https://github.com/Wei-Shaw/sub2api) 的移植版，整个跑在 Cloudflare Workers 和 D1 上，不需要自己维护 Go 服务、PostgreSQL 或 Redis。
 
@@ -15,11 +24,9 @@
 
 ## 功能
 
-- 在 OpenAI、Claude、Gemini、Grok、Antigravity 账号之间调度请求
-- API Key、额度与用量统计
-- 订阅与支付。Stripe、Airwallex 已实现并有测试；支付宝、微信支付、EasyPay 需要自行配置商户凭证与回调
-- 管理后台：用户、账号、渠道、风控、公告、代理
-- 邮箱与 OAuth 登录，可选 TOTP 两步验证
+| **调度** | **计费** | **管理** |
+|---|---|---|
+| 在 OpenAI、Claude、Gemini、Grok、Antigravity 账号之间调度请求。 | API Key、额度、用量统计与订阅。Stripe、Airwallex 已实现并有测试；支付宝、微信支付、EasyPay 需要自行配置商户。 | 用户、账号、渠道、风控、公告、代理的管理后台。邮箱与 OAuth 登录，可选 TOTP 两步验证。 |
 
 ## 目录
 

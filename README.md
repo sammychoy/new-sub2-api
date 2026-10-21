@@ -1,9 +1,18 @@
-# Sub2API on Cloudflare
+<div align="center">
+
+<img src="assets/banner.svg" alt="Sub2API on Cloudflare" width="100%">
 
 **English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
-[![License: LGPL-3.0](https://img.shields.io/badge/License-LGPL--3.0-green.svg)](LICENSE)
-[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20D1-F38020.svg)](https://developers.cloudflare.com/workers/)
+[![License](https://img.shields.io/badge/License-LGPL--3.0-blue?style=flat-square)](LICENSE)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)
+![D1](https://img.shields.io/badge/Cloudflare-D1-F38020?style=flat-square&logo=sqlite&logoColor=white)
+![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+
+[Features](#what-it-does) · [Run locally](#run-it-locally) · [Deploy](#deploy) · [Disclaimer](#disclaimer)
+
+</div>
 
 A port of [sub2api](https://github.com/Wei-Shaw/sub2api) that runs entirely on Cloudflare Workers and D1. There is no Go server, PostgreSQL or Redis to look after.
 
@@ -15,11 +24,9 @@ A port of [sub2api](https://github.com/Wei-Shaw/sub2api) that runs entirely on C
 
 ## What it does
 
-- Routes requests across OpenAI, Claude, Gemini, Grok and Antigravity accounts
-- API keys, quotas and usage tracking
-- Subscriptions and payments. Stripe and Airwallex are implemented and tested. Alipay, WeChat Pay and EasyPay need your own merchant credentials and callback setup
-- Admin console for users, accounts, channels, risk control, announcements and proxies
-- Email and OAuth sign-in, with optional TOTP 2FA
+| **Routing** | **Billing** | **Admin** |
+|---|---|---|
+| Spreads requests across OpenAI, Claude, Gemini, Grok and Antigravity accounts. | API keys, quotas, usage tracking and subscriptions. Stripe and Airwallex are implemented and tested; Alipay, WeChat Pay and EasyPay need your own merchant setup. | Console for users, accounts, channels, risk control, announcements and proxies. Email and OAuth sign-in, with optional TOTP 2FA. |
 
 ## Layout
 
