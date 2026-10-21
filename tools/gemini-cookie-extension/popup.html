@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sub2API - Gemini Cookie</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --border: #334155;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      box-sizing: border-box;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      margin-bottom: 12px;
+      background: #1e293b;
+      border: 1px solid var(--border);
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+    }
+    .status-dot.active {
+      background: var(--success);
+    }
+    .cookie-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .cookie-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .cookie-row:last-child {
+      margin-bottom: 0;
+    }
+    .cookie-label {
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    .cookie-val {
+      color: var(--text);
+      font-family: monospace;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    button {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      margin-bottom: 8px;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+    .sync-panel {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border);
+    }
+    .sync-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    input {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: #0f172a;
+      color: white;
+      font-size: 12px;
+      margin-bottom: 8px;
+      box-sizing: border-box;
+    }
+    .msg {
+      margin-top: 8px;
+      font-size: 11px;
+      text-align: center;
+      min-height: 16px;
+    }
+    .msg.success { color: var(--success); }
+    .msg.error { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <h2><span>✨</span> Sub2API Gemini 憑證</h2>
+
+  <div class="status-badge">
+    <div id="statusDot" class="status-dot"></div>
+    <span id="statusText">檢測 Google 登入中...</span>
+  </div>
+
+  <div class="cookie-box">
+    <div class="cookie-row">
+      <span class="cookie-label">1PSID:</span>
+      <span id="psidVal" class="cookie-val">未檢測到</span>
+    </div>
+    <div class="cookie-row">
+      <span class="cookie-label">1PSIDTS:</span>
+      <span id="psidtsVal" class="cookie-val">未檢測到</span>
+    </div>
+  </div>
+
+  <button id="copyBtn" class="btn-primary" disabled>
+    <span>📋</span> 一鍵複製憑證（粘貼到 Sub2API）
+  </button>
+
+  <div class="sync-panel">
+    <div id="toggleSync" class="sync-title">
+      <span>🚀 一鍵直接同步至 Sub2API</span>
+      <span id="syncArrow">▼</span>
+    </div>
+    <div id="syncForm" style="display: none;">
+      <input id="sub2apiUrl" type="text" placeholder="Sub2API 網址 (如 https://api.your.com)" />
+      <input id="adminKey" type="password" placeholder="管理員 API Key (Admin Key)" />
+      <input id="accountName" type="text" placeholder="賬號名稱 (選填，如 Gemini Web #1)" />
+      <button id="syncBtn" class="btn-secondary" disabled>發送至 Sub2API 建立賬號</button>
+    </div>
+  </div>
+
+  <div id="msgBox" class="msg"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

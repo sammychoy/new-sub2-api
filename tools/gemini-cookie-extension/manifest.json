@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Sub2API - Gemini Cookie Exporter",
+  "version": "1.0.0",
+  "description": "一鍵提取並同步 Google Gemini 網頁端登入憑據 (Cookie) 至 Sub2API 系統",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Gemini Cookie 憑據提取"
+  },
+  "permissions": [
+    "cookies",
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "*://*.google.com/*"
+  ]
+}

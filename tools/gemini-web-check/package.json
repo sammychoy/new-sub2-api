@@ -1,0 +1,10 @@
+{
+  "name": "sub2api-gemini-web-check",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --experimental-strip-types check.mjs",
+    "check:stored": "node --experimental-strip-types check.mjs --stored"
+  }
+}
