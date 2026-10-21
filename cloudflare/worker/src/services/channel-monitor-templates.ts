@@ -108,8 +108,17 @@ export class D1ChannelMonitorTemplateService {
 
     async update(id: number, input: UpdateTemplateInput): Promise<ChannelMonitorTemplateRecord> {
         const existing = await this.getById(id);
-        if (input.name !== undefined && !input.name.trim()) {
-            throw new ChannelMonitorTemplateError(400, "CHANNEL_MONITOR_TEMPLATE_MISSING_NAME", "template name is required");
+        if (input.name !== undefined) {
+            const trimmedName = input.name.trim();
+            if (!trimmedName) {
+                throw new ChannelMonitorTemplateError(400, "CHANNEL_MONITOR_TEMPLATE_MISSING_NAME", "template name is required");
+            }
+            if (trimmedName !== existing.name) {
+                const dup = await this.#repo.findByNameAndProvider(trimmedName, existing.provider);
+                if (dup !== null && dup.id !== id) {
+                    throw new ChannelMonitorTemplateError(409, "CHANNEL_MONITOR_TEMPLATE_DUPLICATE_NAME", "a template with this name already exists for this provider");
+                }
+            }
         }
         const provider = existing.provider;
         const apiMode = input.apiMode ?? existing.apiMode;

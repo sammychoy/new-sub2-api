@@ -19,10 +19,10 @@ function validateRule(input: { name?: string; matchMode?: string; errorCodes?: n
     if (input.matchMode !== undefined && input.matchMode !== "any" && input.matchMode !== "all") {
         throw new RuleError("match_mode_invalid", 400, "match_mode must be 'any' or 'all'");
     }
-    if (input.errorCodes !== undefined && input.keywords !== undefined) {
-        if (input.errorCodes.length === 0 && input.keywords.length === 0) {
-            throw new RuleError("conditions_required", 400, "at least one error_code or keyword is required");
-        }
+    const codes = input.errorCodes ?? [];
+    const keywords = input.keywords ?? [];
+    if (codes.length === 0 && keywords.length === 0) {
+        throw new RuleError("conditions_required", 400, "at least one error_code or keyword is required");
     }
     if (input.passthroughCode === false) {
         if (input.responseCode === undefined || input.responseCode === null || input.responseCode <= 0) {

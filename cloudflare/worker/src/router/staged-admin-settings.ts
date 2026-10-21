@@ -172,10 +172,7 @@ export async function routeStagedAdminSettings(
             const adminSettingsService = new D1AdminSettingsService(settings);
             const validationInput: AdminSettingsUpdateInput = {
                 ...(body as AdminSettingsUpdateInput),
-                totp_encryption_key_configured:
-                    body.totp_encryption_key_configured !== undefined
-                        ? Boolean(body.totp_encryption_key_configured)
-                        : isTotpConfigured
+                totp_encryption_key_configured: isTotpConfigured
             };
             await adminSettingsService.validateAuthSettings(validationInput);
             const result = await adminSettingsService.updateSettings(body as AdminSettingsUpdateInput);

@@ -210,7 +210,12 @@ export class D1PaymentOrderRepository {
     }
 
     async writeAuditLog(orderId: string, action: string, detail: string = "", operator: string = "system"): Promise<void> {
-        await runStatement(this.db, `INSERT INTO payment_audit_logs (order_id, action, detail, operator, created_at) VALUES (?, ?, ?, ?, ?)`, [orderId, action, detail, operator, nowISO()]);
+        await runStatement(
+            this.db,
+            `INSERT INTO payment_audit_logs (order_id, action, detail, operator, created_at) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(order_id, action) DO UPDATE SET detail = excluded.detail, operator = excluded.operator, created_at = excluded.created_at`,
+            [orderId, action, detail, operator, nowISO()]
+        );
     }
 
     async getById(id: number): Promise<PaymentOrderRecord | null> {

@@ -17,6 +17,7 @@ const ORDERS_PATH = "/api/v1/admin/payment/orders";
 const ORDERS_ID = /^\/api\/v1\/admin\/payment\/orders\/(\d+)$/u;
 const ORDERS_ID_CANCEL = /^\/api\/v1\/admin\/payment\/orders\/(\d+)\/cancel$/u;
 const ORDERS_ID_RETRY = /^\/api\/v1\/admin\/payment\/orders\/(\d+)\/retry$/u;
+const ORDERS_ID_REFUND = /^\/api\/v1\/admin\/payment\/orders\/(\d+)\/refund(?:\/query)?$/u;
 
 export interface StagedPaymentOrdersEnv {
     DB?: D1Database;
@@ -86,12 +87,14 @@ export async function routeStagedPaymentOrders(
 
     const cancelMatch = ORDERS_ID_CANCEL.exec(path);
     const retryMatch = ORDERS_ID_RETRY.exec(path);
+    const refundMatch = ORDERS_ID_REFUND.exec(path);
     const idMatch = ORDERS_ID.exec(path);
 
     const isKnownPath =
         path === ORDERS_PATH ||
         cancelMatch !== null ||
         retryMatch !== null ||
+        refundMatch !== null ||
         idMatch !== null;
 
     if (!isKnownPath) return null;
@@ -135,6 +138,27 @@ export async function routeStagedPaymentOrders(
             const id = Number(retryMatch[1]);
             await service.retryFulfillment(id);
             return legacySuccess({ message: "fulfillment retried" });
+        }
+
+        // POST /api/v1/admin/payment/orders/:id/refund — process refund
+        if (refundMatch !== null && request.method === "POST") {
+            const id = Number(refundMatch[1]);
+            let body: Record<string, unknown> = {};
+            try {
+                const parsed = await request.json();
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                    body = parsed as Record<string, unknown>;
+                }
+            } catch {
+                // empty body allowed for refund/query
+            }
+            const result = await service.refundOrder(id, {
+                amount: typeof body.amount === "number" ? body.amount : undefined,
+                reason: typeof body.reason === "string" ? body.reason : undefined,
+                deductBalance: typeof body.deduct_balance === "boolean" ? body.deduct_balance : undefined,
+                force: body.force === true,
+            });
+            return legacySuccess(result);
         }
 
         return null;

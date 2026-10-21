@@ -40,11 +40,11 @@ npx tsx --test test/*.test.mjs   # 740 tests
 # 1. 创建 D1 数据库
 npx wrangler d1 create sub2api
 
-# 2. 执行迁移
+# 2. 配置 worker/wrangler.toml 中的 database_id
+
+# 3. 执行迁移
 cd worker
 npx wrangler d1 migrations apply sub2api --remote
-
-# 3. 配置 wrangler.toml 中的 database_id
 
 # 4. 部署 Worker
 npx wrangler deploy
@@ -52,5 +52,5 @@ npx wrangler deploy
 # 5. 部署前端
 cd ../../frontend
 pnpm install && pnpm build
-npx wrangler pages deploy dist --project-name=sub2api-frontend
+npx wrangler deploy
 ```

@@ -1,5 +1,6 @@
 import { D1AuthSessionRepository } from "../repositories/auth-sessions.ts";
 import { D1AuthUserRepository } from "../repositories/auth-users.ts";
+import { runStatement } from "../repositories/d1.ts";
 import { AccessAuthError, AccessAuthService } from "../services/access-auth.ts";
 import { D1OpsRepositoryImpl } from "../repositories/ops.ts";
 import { D1OpsService, OpsError } from "../services/ops.ts";
@@ -203,6 +204,11 @@ export async function routeStagedOps(
             const body = await request.json() as Record<string, unknown>;
             return legacySuccess({ id: await svc.createAlertSilence(snakeToCamel(body) as any) });
         }
+        const alertSilenceIdMatch = /^\/api\/v1\/admin\/ops\/alert-silences\/(\d+)$/.exec(pathname);
+        if (alertSilenceIdMatch && method === "DELETE") {
+            await runStatement(env.DB, "DELETE FROM ops_alert_silences WHERE id = ?", [Number(alertSilenceIdMatch[1])]);
+            return legacySuccess({});
+        }
 
         // Email notification config
         if (pathname === OPS_PATHS.emailNotificationConfig && method === "GET") {
@@ -269,6 +275,14 @@ export async function routeStagedOps(
         const errorIdMatch = /^\/api\/v1\/admin\/ops\/errors\/(\d+)$/.exec(pathname);
         if (errorIdMatch && method === "GET") {
             return legacySuccess(await svc.getErrorLog(Number(errorIdMatch[1])));
+        }
+        if (errorIdMatch && method === "DELETE") {
+            await runStatement(env.DB, "DELETE FROM ops_error_logs WHERE id = ?", [Number(errorIdMatch[1])]);
+            return legacySuccess({});
+        }
+        const errorUpstreamMatch = /^\/api\/v1\/admin\/ops\/errors\/(\d+)\/upstream-errors$/.exec(pathname);
+        if (errorUpstreamMatch && method === "GET") {
+            return legacySuccess(await svc.listRequestErrorUpstreamErrors(Number(errorUpstreamMatch[1])));
         }
         const errorResolveMatch = /^\/api\/v1\/admin\/ops\/errors\/(\d+)\/resolve$/.exec(pathname);
         if (errorResolveMatch && method === "PUT") {

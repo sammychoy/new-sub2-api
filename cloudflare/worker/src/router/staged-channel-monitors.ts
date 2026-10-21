@@ -89,7 +89,9 @@ async function runMonitorChecks(
         try {
             const body = row.body_override_mode === "replace"
                 ? { ...override, model }
-                : { model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, ...override };
+                : row.body_override_mode === "merge"
+                    ? { model, messages: [{ role: "user", content: "ping" }], max_tokens: 1, ...override }
+                    : { model, messages: [{ role: "user", content: "ping" }], max_tokens: 1 };
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 5000);
             const response = await fetch(row.endpoint, {

@@ -86,9 +86,9 @@ npx wrangler secret put EMAIL_TASK_ENCRYPTION_KEY
 npx wrangler secret put SMTP_PASSWORD
 ```
 
-## LinuxDo OAuth staging
+## LinuxDo OAuth
 
-LinuxDo start, authenticated bind-start, code exchange, userinfo validation, callback-to-D1-pending, generic completion, Worker-SMTP verification, atomic create/bind/adoption, and TOTP continuation are implemented in `src/router/staged-linuxdo-oauth.ts` and `src/router/staged-pending-oauth.ts`. They remain outside `src/index.ts` until the remaining OAuth providers can be activated with the same D1 identity authority.
+LinuxDo start, authenticated bind-start, code exchange, userinfo validation, callback-to-D1-pending, generic completion, Worker-SMTP verification, atomic create/bind/adoption, and TOTP continuation are implemented in `src/router/staged-linuxdo-oauth.ts` and `src/router/staged-pending-oauth.ts` and wired into `src/index.ts`.
 
 For a confidential LinuxDo client, configure the secret with:
 
@@ -96,20 +96,20 @@ For a confidential LinuxDo client, configure the secret with:
 npx wrangler secret put LINUXDO_CLIENT_SECRET
 ```
 
-The D1 settings `linuxdo_connect_enabled`, `linuxdo_connect_client_id`, and `linuxdo_connect_redirect_url` remain authoritative when present. Worker variables may override provider endpoints, scopes, PKCE, frontend callback, and token authentication method. See `cloudflare/docs/operations/LINUXDO_OAUTH_STAGING_AUDIT.md` for the complete variable and activation boundary.
+The D1 settings `linuxdo_connect_enabled`, `linuxdo_connect_client_id`, and `linuxdo_connect_redirect_url` remain authoritative when present. Worker variables may override provider endpoints, scopes, PKCE, frontend callback, and token authentication method.
 
-## OIDC OAuth staging
+## OIDC OAuth
 
-Generic OIDC discovery or explicit endpoints, authenticated bind-start, browser-bound D1 PKCE/nonce state, token and userinfo exchange, RS256/PS256/ES256 JWKS validation, stable issuer/subject identity, verified-email fast registration, choice/create/bind completion, and TOTP continuation are implemented in `src/router/staged-oidc-oauth.ts` and the shared pending finalizer. They remain outside `src/index.ts` until every authentication provider can switch to D1 together.
+Generic OIDC discovery or explicit endpoints, authenticated bind-start, browser-bound D1 PKCE/nonce state, token and userinfo exchange, RS256/PS256/ES256 JWKS validation, stable issuer/subject identity, verified-email fast registration, choice/create/bind completion, and TOTP continuation are implemented in `src/router/staged-oidc-oauth.ts` and the shared pending finalizer, and wired into `src/index.ts`.
 
 Configure confidential-client credentials with `npx wrangler secret put OIDC_CLIENT_SECRET`. D1 OIDC settings remain authoritative when present; Worker variables support deployment-level endpoint and policy fallbacks.
 
-## GitHub and Google OAuth staging
+## GitHub and Google OAuth
 
-Verified-email GitHub and Google start/callback/password-completion flows are implemented in `src/router/staged-email-oauth.ts`, `src/services/email-oauth.ts`, and the shared pending finalizer. Configure secrets with `npx wrangler secret put GITHUB_OAUTH_CLIENT_SECRET` and `npx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET`.
+Verified-email GitHub and Google start/callback/password-completion flows are implemented in `src/router/staged-email-oauth.ts`, `src/services/email-oauth.ts`, and the shared pending finalizer, and wired into `src/index.ts`. Configure secrets with `npx wrangler secret put GITHUB_OAUTH_CLIENT_SECRET` and `npx wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET`.
 
-## WeChat OAuth staging
+## WeChat & DingTalk OAuth
 
-微信 Open/MP 登录、绑定、unionid 主身份、openid 渠道归属、旧 `wechat` 身份升级，以及支付 OAuth 均已在 `src/router/staged-wechat-oauth.ts` 中完成 D1 暂存迁移。支付上下文只写入浏览器绑定的一次性 D1 状态，回调签发 15 分钟 HMAC-SHA256 `wechat_resume_token`，不依赖 Redis。生产应配置 `npx wrangler secret put PAYMENT_RESUME_SIGNING_KEY`；迁移期可使用显式配置的 64 位十六进制 `TOTP_ENCRYPTION_KEY` 兼容旧令牌。
+微信 Open/MP 登录、绑定、unionid 主身份、openid 渠道归属、旧 `wechat` 身份升级，以及支付 OAuth 均已在 `src/router/staged-wechat-oauth.ts` 中完成 D1 迁移并接入 `src/index.ts`；DingTalk OAuth 在 `src/router/staged-dingtalk-oauth.ts` 中接入。支付上下文只写入浏览器绑定的一次性 D1 状态，回调签发 15 分钟 HMAC-SHA256 `wechat_resume_token`，不依赖 Redis。生产应配置 `npx wrangler secret put PAYMENT_RESUME_SIGNING_KEY`；迁移期可使用显式配置的 64 位十六进制 `TOTP_ENCRYPTION_KEY` 兼容旧令牌。
 
 `EMAIL_TASK_ENCRYPTION_KEY` 必须是 64 个十六进制字符，并与认证任务生产端一致。生产环境优先用 `SMTP_PASSWORD` Secret 覆盖 D1 中的过渡密码配置；其余 SMTP 设置继续读取 D1。Cloudflare Worker 禁止连接 SMTP 25 端口，应使用 465 隐式 TLS 或支持 STARTTLS 的 587 端口。

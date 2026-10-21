@@ -64,7 +64,7 @@ export function useAccountOAuth() {
       sessionId.value = response.session_id
       return true
     } catch (err: any) {
-      error.value = err.response?.data?.detail || 'Failed to generate auth URL'
+      error.value = err.response?.data?.message || err.response?.data?.detail || err.message || 'Failed to generate auth URL'
       appStore.showError(error.value)
       return false
     } finally {
@@ -100,7 +100,7 @@ export function useAccountOAuth() {
 
       return tokenInfo as TokenInfo
     } catch (err: any) {
-      error.value = err.response?.data?.detail || 'Failed to exchange auth code'
+      error.value = err.response?.data?.message || err.response?.data?.detail || err.message || 'Failed to exchange auth code'
       appStore.showError(error.value)
       return null
     } finally {
@@ -137,7 +137,7 @@ export function useAccountOAuth() {
 
       return tokenInfo as TokenInfo
     } catch (err: any) {
-      error.value = err.response?.data?.detail || 'Cookie authorization failed'
+      error.value = err.response?.data?.message || err.response?.data?.detail || err.message || 'Cookie authorization failed'
       return null
     } finally {
       loading.value = false

@@ -1,6 +1,6 @@
-# Cloudflare Pages
+# Cloudflare Frontend Deployment
 
-前端 Vue 3 SPA 部署到 Cloudflare Pages。
+前端 Vue 3 SPA 通过 `frontend/wrangler.toml`（Cloudflare Workers Assets + `ROUTER` Service Binding）部署。
 
 ## 配置
 
@@ -14,7 +14,7 @@
 ```bash
 cd frontend
 pnpm install && pnpm build
-npx wrangler pages deploy dist --project-name=sub2api-frontend
+npx wrangler deploy
 ```
 
-Pages 提供静态托管和 SPA 回退。所有 API 请求由 Worker 处理，不使用 Pages Functions。
+前端 Worker 提供静态资源缓存控制、SPA 回退（`index.html`），并通过 `ROUTER` Service Binding（或 `BACKEND_URL` 回退）将 `/api/*`、`/v1/*` 等后端请求转发到 `sub2api-router` Worker。

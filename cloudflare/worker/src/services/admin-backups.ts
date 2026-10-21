@@ -46,6 +46,56 @@ function nowISO(): string {
     return new Date().toISOString();
 }
 
+const RESTORE_TABLE_TIER: Record<string, number> = {
+    settings: 0,
+    users: 0,
+    groups: 0,
+    proxies: 0,
+    tls_fingerprint_profiles: 0,
+    announcements: 0,
+    promo_codes: 0,
+    redeem_codes: 0,
+    payment_provider_instances: 0,
+    channels: 0,
+    channel_monitor_templates: 0,
+    error_passthrough_rules: 0,
+    scheduled_test_plans: 0,
+    user_attribute_definitions: 0,
+    ops_alert_rules: 0,
+    accounts: 1,
+    subscription_plans: 1,
+    payment_channels: 1,
+    payment_orders: 1,
+    api_keys: 1,
+    user_subscriptions: 1,
+    user_affiliates: 1,
+    user_avatars: 1,
+    user_platform_quotas: 1,
+    user_group_rate_multipliers: 1,
+    user_allowed_groups: 1,
+    user_attribute_values: 1,
+    auth_identities: 1,
+    auth_refresh_sessions: 1,
+    announcement_reads: 1,
+    channel_groups: 1,
+    channel_model_pricing: 1,
+    channel_account_stats_pricing_rules: 1,
+    channel_monitors: 1,
+    account_groups: 2,
+    auth_identity_channels: 2,
+    promo_code_usages: 2,
+    payment_audit_logs: 2,
+    user_affiliate_ledger: 2,
+    channel_pricing_intervals: 2,
+    channel_account_stats_model_pricing: 2,
+    channel_account_stats_pricing_intervals: 2,
+    channel_monitor_logs: 2,
+    scheduled_test_results: 2,
+    usage_logs: 2,
+    billing_usage_entries: 3,
+    content_moderation_logs: 2,
+};
+
 async function readJsonSetting<T>(db: D1Database, key: string): Promise<T | null> {
     const row = await firstRow<{ value: string }>(db, `SELECT value FROM settings WHERE key = ?`, [key]);
     return row ? JSON.parse(row.value) as T : null;
@@ -332,8 +382,11 @@ export class D1AdminBackupsService {
         if (!signed.response?.ok) return { success: false, message: `S3 download failed with HTTP ${signed.response?.status ?? 0}`, backup_id: id };
         const snapshot = await signed.response.json() as { tables?: Array<{ name: string; rows: Array<Record<string, unknown>> }> };
         if (!snapshot || !Array.isArray(snapshot.tables)) return { success: false, message: "Backup payload is invalid", backup_id: id };
+        const orderedTables = [...snapshot.tables].sort(
+            (a, b) => (RESTORE_TABLE_TIER[a.name] ?? 2) - (RESTORE_TABLE_TIER[b.name] ?? 2)
+        );
         const statements = [];
-        for (const table of snapshot.tables) {
+        for (const table of orderedTables) {
             if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(table.name) || table.name.startsWith("sqlite_")) continue;
             for (const row of table.rows ?? []) {
                 if (table.name === "settings" && row.key === "backup_records") continue;
@@ -346,7 +399,9 @@ export class D1AdminBackupsService {
                 })));
             }
         }
-        if (statements.length > 0) await this.#db.batch(statements);
+        for (let i = 0; i < statements.length; i += 100) {
+            await this.#db.batch(statements.slice(i, i + 100));
+        }
         return { success: true, message: "Backup restored successfully", backup_id: id, restored_at: nowISO(), password_supplied: Boolean(password) };
     }
 

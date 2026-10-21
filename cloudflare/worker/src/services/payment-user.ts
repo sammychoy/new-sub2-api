@@ -541,10 +541,21 @@ export class D1PaymentUserService {
             throw errBadRequest("Amount out of allowed range");
         }
 
-        const feeRate = input.paymentType === "alipay" || input.paymentType === "wxpay" ? 0.006 : 0.02;
-        const payAmount = input.orderType === "subscription"
-            ? baseAmount * (cfg.subscriptionUsdToCnyRate || 1) * (1 + feeRate)
-            : baseAmount * (1 + feeRate);
+        const providerCfg = parseObject(provider.config);
+        const providerCurrency = stringValue(providerCfg.currency).toUpperCase();
+        const isCnyPayment =
+            input.paymentType === "alipay" ||
+            input.paymentType === "wxpay" ||
+            input.paymentType === "easypay" ||
+            (providerCurrency !== "" ? providerCurrency === "CNY" : provider.providerKey === "airwallex");
+        const currency = isCnyPayment ? "CNY" : (providerCurrency || "USD");
+
+        const defaultFeeRate = input.paymentType === "alipay" || input.paymentType === "wxpay" ? 0.006 : 0.02;
+        const feeRate = cfg.rechargeFeeRate > 0 ? cfg.rechargeFeeRate : defaultFeeRate;
+        const convertedAmount = input.orderType === "subscription" && isCnyPayment
+            ? baseAmount * (cfg.subscriptionUsdToCnyRate || 1)
+            : baseAmount;
+        const payAmount = convertedAmount * (1 + feeRate);
 
         const outTradeNo = generateOutTradeNo();
         const timeoutMinutes = cfg.orderTimeoutMinutes || 30;
@@ -554,7 +565,7 @@ export class D1PaymentUserService {
             userId: input.userId,
             userEmail: input.userEmail,
             userName: input.userName,
-            amount: input.orderType === "subscription" ? baseAmount * (cfg.subscriptionUsdToCnyRate || 1) : baseAmount,
+            amount: convertedAmount,
             payAmount: Math.round(payAmount * 100) / 100,
             feeRate,
             outTradeNo,
@@ -598,7 +609,6 @@ export class D1PaymentUserService {
             });
         }
 
-        const currency = input.paymentType === "alipay" || input.paymentType === "wxpay" ? "CNY" : "USD";
         return {
             order_id: order.id,
             orderId: order.id,
@@ -645,17 +655,29 @@ export class D1PaymentUserService {
             throw errBadRequest("order_id or out_trade_no is required");
         }
         let order: PaymentOrderRecord | null = null;
+        const hasOutTradeNo = Boolean(outTradeNo && outTradeNo.trim());
         if (orderId !== undefined && orderId !== null && Number.isInteger(orderId) && orderId > 0) {
             order = await this.orderRepo.getById(orderId);
-            if (order && outTradeNo && outTradeNo.trim() && order.outTradeNo !== outTradeNo.trim()) {
+            if (order && hasOutTradeNo && order.outTradeNo !== outTradeNo!.trim()) {
                 order = null;
             }
-        } else if (outTradeNo && outTradeNo.trim()) {
-            order = await this.orderRepo.getByOutTradeNo(outTradeNo.trim());
+        } else if (hasOutTradeNo) {
+            order = await this.orderRepo.getByOutTradeNo(outTradeNo!.trim());
         }
         if (!order) throw errNotFound("Order not found");
+        const base = toUserOrderResult(order);
         return {
-            ...toUserOrderResult(order),
+            ...base,
+            outTradeNo: hasOutTradeNo ? base.outTradeNo : "",
+            out_trade_no: hasOutTradeNo ? base.out_trade_no : "",
+            payUrl: null,
+            pay_url: null,
+            qrCode: null,
+            qr_code: null,
+            refundReason: null,
+            refund_reason: null,
+            refundRequestReason: null,
+            refund_request_reason: null,
             order_id: order.id,
             orderId: order.id,
             paid: order.status === "PAID" || order.status === "COMPLETED" || order.status === "PROCESSING",

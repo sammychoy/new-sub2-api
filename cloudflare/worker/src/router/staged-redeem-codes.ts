@@ -198,11 +198,29 @@ export async function routeStagedRedeemCodes(
 
         // POST /api/v1/admin/redeem-codes/batch-update
         if (path === REDEEM_CODES_BATCH_UPDATE && request.method === "POST") {
-            const body = await request.json() as { ids?: number[]; fields?: { status?: string; expires_at?: string | null; notes?: string | null; group_id?: number | null } };
+            const body = await request.json() as {
+                ids?: number[];
+                fields?: {
+                    status?: string;
+                    expires_at?: string | null;
+                    expiresAt?: string | null;
+                    notes?: string | null;
+                    group_id?: number | null;
+                    groupId?: number | null;
+                };
+            };
             if (!body || !Array.isArray(body.ids) || body.ids.length === 0 || !body.fields) {
                 return legacyError(400, "ids and fields are required", "INVALID_BODY");
             }
-            const result = await service.batchUpdate({ ids: body.ids, fields: body.fields });
+            const normalizedFields = {
+                status: body.fields.status,
+                expiresAt: body.fields.expiresAt !== undefined ? body.fields.expiresAt : body.fields.expires_at,
+                expires_at: body.fields.expires_at !== undefined ? body.fields.expires_at : body.fields.expiresAt,
+                notes: body.fields.notes,
+                groupId: body.fields.groupId !== undefined ? body.fields.groupId : body.fields.group_id,
+                group_id: body.fields.group_id !== undefined ? body.fields.group_id : body.fields.groupId,
+            };
+            const result = await service.batchUpdate({ ids: body.ids, fields: normalizedFields });
             return legacySuccess({ updated: result.updated, message: "Redeem codes updated successfully" });
         }
 

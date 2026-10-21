@@ -17,7 +17,10 @@ import {
 function toSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
-        const snakeKey = key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+        const snakeKey = key
+            .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+            .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+            .toLowerCase();
         if (value !== null && typeof value === "object" && !Array.isArray(value)) {
             result[snakeKey] = toSnakeCase(value as Record<string, unknown>);
         } else if (Array.isArray(value)) {

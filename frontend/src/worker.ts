@@ -48,9 +48,19 @@ export default {
           return await env.ROUTER.fetch(request)
         }
         const backendBase = env.BACKEND_URL?.trim().replace(/\/+$/, '')
-        if (backendBase) {
-          const targetUrl = `${backendBase}${url.pathname}${url.search}`
-          return await fetch(new Request(targetUrl, request))
+        if (backendBase && !backendBase.includes('<')) {
+          let targetUrl: string | null = null
+          try {
+            const parsedBackend = new URL(backendBase)
+            if (parsedBackend.protocol === 'http:' || parsedBackend.protocol === 'https:') {
+              targetUrl = `${backendBase}${url.pathname}${url.search}`
+            }
+          } catch {
+            // Invalid BACKEND_URL falls through to 502 Bad Gateway
+          }
+          if (targetUrl) {
+            return await fetch(new Request(targetUrl, request))
+          }
         }
         return new Response(
           JSON.stringify({ code: 502, message: 'Bad Gateway: Backend router is not configured' }),
@@ -70,25 +80,24 @@ export default {
           const res = await env.ASSETS.fetch(request)
           const contentType = res.headers.get('content-type') || ''
 
-          if (url.pathname.startsWith('/assets/')) {
-            if (contentType.includes('text/html')) {
-              return new Response('Asset Not Found', {
-                status: 404,
-                headers: {
-                  'content-type': 'text/plain; charset=utf-8',
-                  'cache-control': 'no-store',
-                },
-              })
-            }
-            if (res.status === 200) {
-              const headers = new Headers(res.headers)
-              headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-              return new Response(res.body, {
-                status: res.status,
-                statusText: res.statusText,
-                headers,
-              })
-            }
+          if (contentType.includes('text/html')) {
+            return new Response('Asset Not Found', {
+              status: 404,
+              headers: {
+                'content-type': 'text/plain; charset=utf-8',
+                'cache-control': 'no-store',
+              },
+            })
+          }
+
+          if (url.pathname.startsWith('/assets/') && res.status === 200) {
+            const headers = new Headers(res.headers)
+            headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+            return new Response(res.body, {
+              status: res.status,
+              statusText: res.statusText,
+              headers,
+            })
           }
 
           if (res.status !== 404) {

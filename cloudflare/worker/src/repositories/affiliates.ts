@@ -239,6 +239,26 @@ export class D1AffiliateRepository {
         return rows;
     }
 
+    private async getDefaultRebateRate(): Promise<number> {
+        const rows = await allRows<{ key: string; value: string }>(
+            this.#db,
+            `SELECT key, value FROM settings WHERE key IN ('affiliate_rebate_rate', 'commission_rate')`
+        );
+        const map = new Map(rows.map((r) => [r.key, r.value]));
+        const raw = map.get("affiliate_rebate_rate") ?? map.get("commission_rate");
+        if (raw !== undefined) {
+            const parsed = Number.parseFloat(raw.trim());
+            if (Number.isFinite(parsed)) {
+                return Math.min(100, Math.max(0, parsed));
+            }
+        }
+        return 0;
+    }
+
+    async getOrCreateUserAffiliate(userId: number): Promise<{ affCode: string; affQuota: number; affFrozenQuota: number; affHistoryQuota: number; affCount: number; inviterId: number | null }> {
+        return this.ensureUserAffiliate(userId);
+    }
+
     async getUserOverview(userId: number): Promise<AffiliateUserOverview | null> {
         const row = await firstRow<{
             user_id: number; email: string; username: string; aff_code: string;
@@ -275,7 +295,8 @@ export class D1AffiliateRepository {
             [userId]
         );
         if (row === null) return null;
-        const rebateRatePercent = Math.min(100, Math.max(0, row.rebate_rate ?? 0));
+        const fallbackRate = row.rebate_rate === null ? await this.getDefaultRebateRate() : row.rebate_rate;
+        const rebateRatePercent = Math.min(100, Math.max(0, fallbackRate ?? 0));
         return {
             userId: row.user_id,
             user_id: row.user_id,
@@ -297,6 +318,7 @@ export class D1AffiliateRepository {
     }
 
     async updateUserAffCode(userId: number, newCode: string): Promise<boolean> {
+        await this.getOrCreateUserAffiliate(userId);
         const result = await runStatement(
             this.#db,
             `UPDATE user_affiliates SET aff_code = ?, aff_code_custom = 1, updated_at = datetime('now') WHERE user_id = ?`,
@@ -306,6 +328,7 @@ export class D1AffiliateRepository {
     }
 
     async resetUserAffCode(userId: number): Promise<string> {
+        await this.getOrCreateUserAffiliate(userId);
         const code = generateAffCode();
         await runStatement(
             this.#db,
@@ -654,7 +677,8 @@ export class D1AffiliateRepository {
         );
         if (!row) return null;
         const invitees = await this.listInvitees(userId, 100);
-        const effectiveRebateRatePercent = Math.min(100, Math.max(0, row.aff_rebate_rate_percent ?? 0));
+        const fallbackRate = row.aff_rebate_rate_percent === null ? await this.getDefaultRebateRate() : row.aff_rebate_rate_percent;
+        const effectiveRebateRatePercent = Math.min(100, Math.max(0, fallbackRate ?? 0));
         return {
             userId: row.user_id,
             user_id: row.user_id,

@@ -1,5 +1,6 @@
 import { D1AuthSessionRepository } from "../repositories/auth-sessions.ts";
 import { D1AuthUserRepository } from "../repositories/auth-users.ts";
+import { firstRow } from "../repositories/d1.ts";
 import { AccessAuthError, AccessAuthService } from "../services/access-auth.ts";
 import { AuthTokenService } from "../services/auth-tokens.ts";
 import { Hs256JwtSigner, Hs256JwtVerifier } from "../services/jwt.ts";
@@ -14,6 +15,7 @@ import {
 } from "./responses.ts";
 
 const PROMO_CODES_PATH = "/api/v1/admin/promo-codes";
+const VALIDATE_PROMO_CODE_PATH = "/api/v1/auth/validate-promo-code";
 const PROMO_CODES_ID = /^\/api\/v1\/admin\/promo-codes\/(\d+)$/u;
 const PROMO_CODES_ID_USAGES = /^\/api\/v1\/admin\/promo-codes\/(\d+)\/usages$/u;
 
@@ -88,6 +90,7 @@ export async function routeStagedPromoCodes(
 
     const isKnownPath =
         path === PROMO_CODES_PATH ||
+        path === VALIDATE_PROMO_CODE_PATH ||
         idMatch !== null ||
         idUsagesMatch !== null;
 
@@ -95,6 +98,83 @@ export async function routeStagedPromoCodes(
     if (env.DB === undefined) return routerError(503, "database_not_configured", "Configure the Cloudflare D1 DB binding");
 
     try {
+        // POST /api/v1/auth/validate-promo-code — public validation endpoint
+        if (path === VALIDATE_PROMO_CODE_PATH) {
+            if (request.method !== "POST") {
+                return routerError(405, "method_not_allowed", "Method not allowed");
+            }
+            const body = await request.json().catch(() => null) as { code?: string } | null;
+            const code = typeof body?.code === "string" ? body.code.trim() : "";
+            if (!code) {
+                return legacyError(400, "code is required", "INVALID_BODY");
+            }
+
+            const enabledRow = await firstRow<{ value: string }>(
+                env.DB,
+                "SELECT value FROM settings WHERE key = 'promo_code_enabled'"
+            );
+            if (enabledRow?.value?.trim().toLowerCase() === "false") {
+                return legacySuccess({
+                    valid: false,
+                    bonus_amount: 0,
+                    error_code: "PROMO_CODE_DISABLED",
+                    message: "Promo codes are disabled",
+                });
+            }
+
+            const promo = await firstRow<{
+                id: number;
+                code: string;
+                bonus_amount: number;
+                max_uses: number;
+                used_count: number;
+                status: string;
+                expires_at: string | null;
+            }>(
+                env.DB,
+                "SELECT id, code, bonus_amount, max_uses, used_count, status, expires_at FROM promo_codes WHERE UPPER(code) = ?",
+                [code.toUpperCase()]
+            );
+
+            if (!promo) {
+                return legacySuccess({
+                    valid: false,
+                    bonus_amount: 0,
+                    error_code: "PROMO_CODE_NOT_FOUND",
+                    message: "Invalid promo code",
+                });
+            }
+            if (promo.status !== "active") {
+                return legacySuccess({
+                    valid: false,
+                    bonus_amount: 0,
+                    error_code: "PROMO_CODE_DISABLED",
+                    message: "Promo code is disabled",
+                });
+            }
+            if (promo.expires_at && new Date(promo.expires_at).getTime() <= clock()) {
+                return legacySuccess({
+                    valid: false,
+                    bonus_amount: 0,
+                    error_code: "PROMO_CODE_EXPIRED",
+                    message: "Promo code has expired",
+                });
+            }
+            if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
+                return legacySuccess({
+                    valid: false,
+                    bonus_amount: 0,
+                    error_code: "PROMO_CODE_MAX_USED",
+                    message: "Promo code has reached maximum usage limit",
+                });
+            }
+
+            return legacySuccess({
+                valid: true,
+                bonus_amount: promo.bonus_amount,
+            });
+        }
+
         const auth = await authenticateAdmin(request, env, clock);
         if (auth.role !== "admin") return middlewareAuthError(403, "FORBIDDEN", "Admin access required");
 

@@ -13,7 +13,7 @@ export class PaymentWebhookError extends Error {
     }
 }
 
-interface ProviderRow { config: string; enabled: number; }
+interface ProviderRow { id: number; config: string; enabled: number; }
 
 export class D1PaymentWebhookService {
     readonly #db: D1Database;
@@ -23,9 +23,36 @@ export class D1PaymentWebhookService {
         this.#orders = new D1PaymentOrderRepository(db);
     }
 
+    async #resolveProviderInstance(providerKey: string, order: PaymentOrderRecord | null, fallback: ProviderRow): Promise<ProviderRow> {
+        if (order?.providerInstanceId) {
+            const instId = Number(order.providerInstanceId);
+            if (Number.isInteger(instId) && instId > 0 && instId !== fallback.id) {
+                const matched = await firstRow<ProviderRow>(
+                    this.#db,
+                    "SELECT id, config, enabled FROM payment_provider_instances WHERE id = ? AND provider_key = ? AND enabled = 1 LIMIT 1",
+                    [instId, providerKey]
+                );
+                if (matched) return matched;
+            }
+        }
+        return fallback;
+    }
+
     async handleStripe(rawBody: string, signature: string | null): Promise<{ received: boolean; duplicate?: boolean }> {
-        const provider = await firstRow<ProviderRow>(this.#db, "SELECT config, enabled FROM payment_provider_instances WHERE provider_key = 'stripe' ORDER BY sort_order, id LIMIT 1", []);
+        let provider = await firstRow<ProviderRow>(this.#db, "SELECT id, config, enabled FROM payment_provider_instances WHERE provider_key = 'stripe' ORDER BY sort_order, id LIMIT 1", []);
         if (!provider || provider.enabled !== 1) throw new PaymentWebhookError(503, "PROVIDER_DISABLED", "Stripe provider is not enabled");
+        let parsedEvent: Record<string, any> | null = null;
+        let preloadedOrder: PaymentOrderRecord | null = null;
+        try {
+            parsedEvent = JSON.parse(rawBody);
+            const candidateOrderId = stringValue(parsedEvent?.data?.object?.metadata?.order_id, parsedEvent?.data?.object?.metadata?.orderId);
+            if (/^[A-Za-z0-9_-]{1,64}$/.test(candidateOrderId)) {
+                preloadedOrder = await this.#orders.getByOutTradeNo(candidateOrderId);
+                provider = await this.#resolveProviderInstance("stripe", preloadedOrder, provider);
+            }
+        } catch {
+            // Will be handled after signature check
+        }
         const config = parseObject(provider.config);
         const secret = stringValue(config.webhookSecret, config.webhook_secret);
         const configuredCurrency = stringValue(config.currency).toLowerCase();
@@ -33,15 +60,15 @@ export class D1PaymentWebhookService {
         if (!signature || !(await verifyStripeSignature(rawBody, signature, secret))) {
             throw new PaymentWebhookError(400, "INVALID_SIGNATURE", "Invalid Stripe signature");
         }
-        let event: Record<string, any>;
-        try { event = JSON.parse(rawBody); } catch { throw new PaymentWebhookError(400, "INVALID_PAYLOAD", "Invalid Stripe payload"); }
+        if (!parsedEvent) throw new PaymentWebhookError(400, "INVALID_PAYLOAD", "Invalid Stripe payload");
+        const event = parsedEvent;
         const object = event?.data?.object;
         const type = typeof event.type === "string" ? event.type : "";
         if (!object || typeof object !== "object") return { received: true };
         if (type !== "payment_intent.succeeded" && type !== "payment_intent.payment_failed" && type !== "payment_intent.canceled") return { received: true };
         const orderId = stringValue(object.metadata?.order_id, object.metadata?.orderId);
         if (!/^[A-Za-z0-9_-]{1,64}$/.test(orderId)) throw new PaymentWebhookError(400, "ORDER_ID_MISSING", "Stripe metadata.order_id is required");
-        const order = await this.#orders.getByOutTradeNo(orderId);
+        const order = preloadedOrder ?? await this.#orders.getByOutTradeNo(orderId);
         if (!order) throw new PaymentWebhookError(404, "ORDER_NOT_FOUND", "Payment order not found");
         if (type !== "payment_intent.succeeded") {
             if (order.status === "PENDING") await this.#orders.updateStatus(order.id, "FAILED", { failed_reason: `Stripe event ${type}`, failed_at: new Date().toISOString() });
@@ -60,20 +87,32 @@ export class D1PaymentWebhookService {
     }
 
     async handleAirwallex(rawBody: string, timestampHeader: string | null, signatureHeader: string | null): Promise<{ received: boolean; duplicate?: boolean }> {
-        const provider = await firstRow<ProviderRow>(this.#db, "SELECT config, enabled FROM payment_provider_instances WHERE provider_key = 'airwallex' ORDER BY sort_order, id LIMIT 1", []);
+        let provider = await firstRow<ProviderRow>(this.#db, "SELECT id, config, enabled FROM payment_provider_instances WHERE provider_key = 'airwallex' ORDER BY sort_order, id LIMIT 1", []);
         if (!provider || provider.enabled !== 1) throw new PaymentWebhookError(503, "PROVIDER_DISABLED", "Airwallex provider is not enabled");
+        let parsedEvent: Record<string, any> | null = null;
+        let preloadedOrder: PaymentOrderRecord | null = null;
+        try {
+            parsedEvent = JSON.parse(rawBody);
+            const candidateOrderId = stringValue(parsedEvent?.data?.object?.merchant_order_id, parsedEvent?.data?.object?.metadata?.order_id);
+            if (candidateOrderId) {
+                preloadedOrder = await this.#orders.getByOutTradeNo(candidateOrderId);
+                provider = await this.#resolveProviderInstance("airwallex", preloadedOrder, provider);
+            }
+        } catch {
+            // Will be handled after signature check
+        }
         const config = parseObject(provider.config);
         const secret = stringValue(config.webhookSecret, config.webhook_secret);
         if (!secret || !timestampHeader || !signatureHeader || !(await verifyAirwallexSignature(rawBody, timestampHeader, signatureHeader, secret))) throw new PaymentWebhookError(400, "INVALID_SIGNATURE", "Invalid Airwallex signature");
         const timestamp = Number(timestampHeader);
         if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 5 * 60 * 1000) throw new PaymentWebhookError(400, "INVALID_SIGNATURE", "Airwallex timestamp is outside the allowed window");
-        let event: Record<string, any>;
-        try { event = JSON.parse(rawBody); } catch { throw new PaymentWebhookError(400, "INVALID_PAYLOAD", "Invalid Airwallex payload"); }
+        if (!parsedEvent) throw new PaymentWebhookError(400, "INVALID_PAYLOAD", "Invalid Airwallex payload");
+        const event = parsedEvent;
         const name = stringValue(event.name);
         if (name !== "payment_intent.succeeded" && name !== "payment_intent.cancelled") return { received: true };
         const object = event.data?.object;
         const orderId = stringValue(object?.merchant_order_id, object?.metadata?.order_id);
-        const order = await this.#orders.getByOutTradeNo(orderId);
+        const order = preloadedOrder ?? await this.#orders.getByOutTradeNo(orderId);
         if (!order) throw new PaymentWebhookError(404, "ORDER_NOT_FOUND", "Payment order not found");
         if (name === "payment_intent.cancelled") {
             if (order.status === "PENDING") await this.#orders.updateStatus(order.id, "FAILED", { failed_reason: "Airwallex payment cancelled", failed_at: new Date().toISOString() });

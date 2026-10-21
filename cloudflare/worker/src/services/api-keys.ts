@@ -64,6 +64,7 @@ export class D1ApiKeyService {
             name?: string;
             key?: string;
             group_id?: number | null;
+            groupId?: number | null;
             ip_whitelist?: string[];
             ip_blacklist?: string[];
             quota?: number;
@@ -79,6 +80,14 @@ export class D1ApiKeyService {
         }
         if (name.length > MAX_NAME_LENGTH) {
             throw new ApiKeyError("name_too_long", 400, `API key name must be at most ${MAX_NAME_LENGTH} characters`);
+        }
+
+        const resolvedGroupId = input.group_id !== undefined ? input.group_id : input.groupId;
+        if (typeof resolvedGroupId === "number" && resolvedGroupId > 0) {
+            const allowed = await this.#repository.isGroupAllowedForUser(userId, resolvedGroupId);
+            if (!allowed) {
+                throw new ApiKeyError("FORBIDDEN", 403, "User is not allowed to access this exclusive group");
+            }
         }
 
         let keyValue: string;
@@ -131,7 +140,7 @@ export class D1ApiKeyService {
             key: keyValue,
             name,
             userId,
-            groupId: input.group_id ?? null,
+            groupId: resolvedGroupId ?? null,
             ipWhitelist: input.ip_whitelist ?? [],
             ipBlacklist: input.ip_blacklist ?? [],
             quota: input.quota ?? 0,
@@ -150,6 +159,7 @@ export class D1ApiKeyService {
         input: {
             name?: string;
             group_id?: number | null;
+            groupId?: number | null;
             status?: string;
             ip_whitelist?: string[];
             ip_blacklist?: string[];
@@ -169,6 +179,14 @@ export class D1ApiKeyService {
             }
             if (name.length > MAX_NAME_LENGTH) {
                 throw new ApiKeyError("name_too_long", 400, `API key name must be at most ${MAX_NAME_LENGTH} characters`);
+            }
+        }
+
+        const resolvedGroupId = input.group_id !== undefined ? input.group_id : input.groupId;
+        if (typeof resolvedGroupId === "number" && resolvedGroupId > 0 && userId > 0) {
+            const allowed = await this.#repository.isGroupAllowedForUser(userId, resolvedGroupId);
+            if (!allowed) {
+                throw new ApiKeyError("FORBIDDEN", 403, "User is not allowed to access this exclusive group");
             }
         }
 
@@ -194,7 +212,7 @@ export class D1ApiKeyService {
 
         const updateInput: UpdateApiKeyInput = {
             name: input.name?.trim(),
-            groupId: input.group_id,
+            groupId: resolvedGroupId,
             status: input.status,
             ipWhitelist: input.ip_whitelist,
             ipBlacklist: input.ip_blacklist,

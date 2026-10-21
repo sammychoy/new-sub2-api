@@ -169,7 +169,7 @@ export class D1ProxyRepository {
     async findByHostPortAuth(host: string, port: number, username: string, password: string): Promise<ProxyRecord | null> {
         const row = await firstRow<ProxyRow>(
             this.#db,
-            "SELECT * FROM proxies WHERE host = ? AND port = ? AND username = ? AND password = ? AND deleted_at IS NULL LIMIT 1",
+            "SELECT * FROM proxies WHERE host = ? AND port = ? AND COALESCE(username, '') = ? AND COALESCE(password, '') = ? AND deleted_at IS NULL LIMIT 1",
             [host, port, username || "", password || ""]
         );
         return row === null ? null : rowToRecord(row);

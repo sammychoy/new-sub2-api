@@ -108,6 +108,58 @@ export class D1PaymentOrderService {
                 await this.repo.writeAuditLog(String(order.id), "ORDER_FULFILLED", `Balance credited: ${creditAmount}`, "admin");
             }
         }
-        await this.repo.updateStatus(id, "PROCESSING");
+        await this.repo.updateStatus(id, "COMPLETED", { completed_at: timestamp });
+    }
+
+    async refundOrder(id: number, input: { amount?: number; reason?: string; deductBalance?: boolean; force?: boolean } = {}): Promise<{
+        success: boolean;
+        warning?: string;
+        require_force?: boolean;
+        balance_deducted?: number;
+        subscription_days_deducted?: number;
+    }> {
+        const order = await this.repo.getById(id);
+        if (!order) throw errNotFound();
+        if (!["PAID", "COMPLETED", "REFUND_REQUESTED", "PROCESSING"].includes(order.status)) {
+            throw errBadRequest("Order cannot be refunded in its current status");
+        }
+        const maxRefundable = order.payAmount > 0 ? order.payAmount : order.amount;
+        const refundAmount = typeof input.amount === "number" && Number.isFinite(input.amount) && input.amount > 0
+            ? input.amount
+            : maxRefundable;
+        if (refundAmount > maxRefundable + 0.0001) {
+            throw errBadRequest("Refund amount cannot exceed paid amount");
+        }
+        const reason = typeof input.reason === "string" && input.reason.trim() !== ""
+            ? input.reason.trim()
+            : (order.refundRequestReason ?? "Refunded by admin");
+        const timestamp = new Date().toISOString();
+        let balanceDeducted = 0;
+        if (order.orderType === "balance" && input.deductBalance !== false) {
+            const user = await firstRow<{ balance: number }>(this.db, "SELECT balance FROM users WHERE id = ?", [order.userId]);
+            const deductTarget = order.amount;
+            if (user) {
+                if (user.balance < deductTarget && !input.force) {
+                    return {
+                        success: false,
+                        require_force: true,
+                        warning: "User balance is lower than order amount; confirm force refund to proceed",
+                    };
+                }
+                balanceDeducted = Math.min(Math.max(0, user.balance), deductTarget);
+                await runStatement(this.db, "UPDATE users SET balance = MAX(0, balance - ?), updated_at = ? WHERE id = ?", [deductTarget, timestamp, order.userId]);
+            }
+        }
+        await this.repo.updateStatus(id, "REFUNDED", {
+            refund_amount: refundAmount,
+            refund_reason: reason,
+            refund_at: timestamp,
+            force_refund: input.force ? 1 : 0,
+        });
+        await this.repo.writeAuditLog(String(id), "ORDER_REFUNDED", `Order refunded (${refundAmount}): ${reason}`, "admin");
+        return {
+            success: true,
+            balance_deducted: balanceDeducted,
+        };
     }
 }

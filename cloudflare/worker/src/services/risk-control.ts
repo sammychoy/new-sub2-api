@@ -1,4 +1,5 @@
 import type { D1RiskControlRepository, LogFilter } from "../repositories/risk-control.ts";
+import { sha256Hex } from "../utils/crypto.ts";
 
 export class RiskControlError extends Error {
     readonly status: number;
@@ -187,9 +188,16 @@ export class D1RiskControlService {
             delete merged.api_key;
         }
         if (Array.isArray(input.delete_api_key_hashes) && input.delete_api_key_hashes.length > 0) {
-            const hashes = new Set(input.delete_api_key_hashes.map(String));
-            const keys: string[] = Array.isArray(merged.api_keys) ? merged.api_keys : (merged.api_key ? [merged.api_key] : []);
-            merged.api_keys = keys.filter((k: string) => !hashes.has(sha256Hex(k)));
+            const hashes = new Set(input.delete_api_key_hashes.map((h) => String(h).toLowerCase()));
+            const keys: string[] = Array.isArray(merged.api_keys) ? merged.api_keys : (merged.api_key ? [String(merged.api_key)] : []);
+            const kept: string[] = [];
+            for (const k of keys) {
+                const digest = (await sha256Hex(k)).toLowerCase();
+                if (!hashes.has(digest)) {
+                    kept.push(k);
+                }
+            }
+            merged.api_keys = kept;
         }
         if (input.clear_api_key === true) {
             merged.api_keys = [];
@@ -251,16 +259,6 @@ export class D1RiskControlService {
     async clearFlaggedHashes(): Promise<{ deleted: number }> {
         return { deleted: 0 };
     }
-}
-
-function sha256Hex(key: string): string {
-    let hash = 0;
-    for (let i = 0; i < key.length; i++) {
-        const chr = key.charCodeAt(i);
-        hash = ((hash << 5) - hash) + chr;
-        hash |= 0;
-    }
-    return Math.abs(hash).toString(16).padStart(8, "0");
 }
 
 function mapLogRow(r: any): ContentModerationLogItem {

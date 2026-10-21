@@ -1,11 +1,12 @@
 import { D1AuthSessionRepository } from "../repositories/auth-sessions.ts";
 import { D1AuthUserRepository } from "../repositories/auth-users.ts";
+import { allRows, firstRow } from "../repositories/d1.ts";
 import { D1UsageUserRepository } from "../repositories/usage-user.ts";
 import { AccessAuthError, AccessAuthService } from "../services/access-auth.ts";
 import { AuthTokenService } from "../services/auth-tokens.ts";
 import { Hs256JwtSigner, Hs256JwtVerifier } from "../services/jwt.ts";
 import { D1UsageUserService, UsageUserError } from "../services/usage-user.ts";
-import type { D1Database } from "../types/d1.ts";
+import type { D1Database, D1Value } from "../types/d1.ts";
 import {
     legacyError,
     legacyInternalError,
@@ -24,6 +25,7 @@ const USAGE_DASHBOARD_SNAPSHOT_V2_RE = /^\/api\/v1\/usage\/dashboard\/snapshot-v
 const USAGE_BY_ID_RE = /^\/api\/v1\/usage\/(\d+)\/?$/;
 const USER_API_KEY_DAILY_USAGE_RE = /^\/api\/v1\/user\/api-keys\/(\d+)\/usage\/daily\/?$/;
 const USER_PLATFORM_QUOTAS_RE = /^\/api\/v1\/user\/platform-quotas\/?$/;
+const USER_BALANCE_HISTORY_RE = /^\/api\/v1\/user\/balance-history\/?$/;
 
 export interface StagedUsageUserEnv {
     DB?: D1Database;
@@ -53,7 +55,10 @@ function parseDateParam(url: URL, key: string): string | undefined {
 }
 
 export function isUsageUserPath(path: string): boolean {
-    return path.startsWith("/api/v1/usage") || path.startsWith("/api/v1/user/api-keys/") || path.startsWith("/api/v1/user/platform-quotas");
+    return path.startsWith("/api/v1/usage")
+        || path.startsWith("/api/v1/user/api-keys/")
+        || path.startsWith("/api/v1/user/platform-quotas")
+        || path.startsWith("/api/v1/user/balance-history");
 }
 
 async function authenticateUser(request: Request, env: StagedUsageUserEnv, clock: () => number): Promise<{ userId: number }> {
@@ -199,9 +204,146 @@ export async function routeStagedUsageUser(
             })) });
         }
 
+        // GET /api/v1/user/balance-history
+        if (USER_BALANCE_HISTORY_RE.test(pathname)) {
+            const page = Math.max(1, parseOptionalInt(url, "page") ?? 1);
+            const pageSize = Math.min(100, Math.max(1, parseOptionalInt(url, "page_size") ?? parseOptionalInt(url, "limit") ?? 20));
+            const type = url.searchParams.get("type")?.trim() || undefined;
+            const offset = (page - 1) * pageSize;
+
+            type RawBalanceRow = {
+                id: number;
+                code: string;
+                type: string;
+                value: number;
+                status: string;
+                notes: string | null;
+                used_at: string | null;
+                created_at: string;
+            };
+
+            let rows: RawBalanceRow[] = [];
+            let total = 0;
+
+            if (type === "affiliate_balance") {
+                const countRow = await firstRow<{ cnt: number }>(
+                    env.DB,
+                    "SELECT COUNT(*) as cnt FROM user_affiliate_ledger WHERE user_id = ? AND action = 'transfer'",
+                    [userId]
+                );
+                total = countRow?.cnt ?? 0;
+                const ledgerRows = await allRows<{ id: number; amount: number; created_at: string }>(
+                    env.DB,
+                    "SELECT id, amount, created_at FROM user_affiliate_ledger WHERE user_id = ? AND action = 'transfer' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    [userId, pageSize, offset]
+                );
+                rows = ledgerRows.map((r) => ({
+                    id: r.id,
+                    code: `aff_transfer_${r.id}`,
+                    type: "affiliate_balance",
+                    value: r.amount,
+                    status: "used",
+                    notes: null,
+                    used_at: r.created_at,
+                    created_at: r.created_at,
+                }));
+            } else if (type === "payment") {
+                const countRow = await firstRow<{ cnt: number }>(
+                    env.DB,
+                    "SELECT COUNT(*) as cnt FROM payment_orders WHERE user_id = ? AND status IN ('completed', 'paid') AND COALESCE(order_type, 'balance') = 'balance'",
+                    [userId]
+                );
+                total = countRow?.cnt ?? 0;
+                rows = await allRows<RawBalanceRow>(
+                    env.DB,
+                    `SELECT id, COALESCE(out_trade_no, 'order_' || id) as code, 'payment' as type, amount as value, 'used' as status, payment_type as notes, COALESCE(paid_at, updated_at, created_at) as used_at, created_at
+                     FROM payment_orders
+                     WHERE user_id = ? AND status IN ('completed', 'paid') AND COALESCE(order_type, 'balance') = 'balance'
+                     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+                    [userId, pageSize, offset]
+                );
+            } else if (type) {
+                const values: D1Value[] = [userId, type];
+                const countRow = await firstRow<{ cnt: number }>(
+                    env.DB,
+                    "SELECT COUNT(*) as cnt FROM redeem_codes WHERE used_by = ? AND type = ?",
+                    values
+                );
+                total = countRow?.cnt ?? 0;
+                rows = await allRows<RawBalanceRow>(
+                    env.DB,
+                    "SELECT id, code, type, value, status, notes, used_at, created_at FROM redeem_codes WHERE used_by = ? AND type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    [...values, pageSize, offset]
+                );
+            } else {
+                const countRow = await firstRow<{ cnt: number }>(
+                    env.DB,
+                    `SELECT (
+                        (SELECT COUNT(*) FROM redeem_codes WHERE used_by = ?) +
+                        (SELECT COUNT(*) FROM payment_orders WHERE user_id = ? AND status IN ('completed', 'paid') AND COALESCE(order_type, 'balance') = 'balance')
+                    ) as cnt`,
+                    [userId, userId]
+                );
+                total = countRow?.cnt ?? 0;
+                rows = await allRows<RawBalanceRow>(
+                    env.DB,
+                    `SELECT id, code, type, value, status, notes, used_at, created_at
+                     FROM (
+                         SELECT id, code, type, value, status, notes, used_at, created_at
+                         FROM redeem_codes
+                         WHERE used_by = ?
+                         UNION ALL
+                         SELECT id, COALESCE(out_trade_no, 'order_' || id) as code, 'payment' as type, amount as value, 'used' as status, payment_type as notes, COALESCE(paid_at, updated_at, created_at) as used_at, created_at
+                         FROM payment_orders
+                         WHERE user_id = ? AND status IN ('completed', 'paid') AND COALESCE(order_type, 'balance') = 'balance'
+                     )
+                     ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+                    [userId, userId, pageSize, offset]
+                );
+            }
+
+            const rechargeRow = await firstRow<{ total: number }>(
+                env.DB,
+                `SELECT (
+                    (SELECT COALESCE(SUM(value), 0) FROM redeem_codes WHERE used_by = ? AND value > 0) +
+                    (SELECT COALESCE(SUM(amount), 0) FROM payment_orders WHERE user_id = ? AND status IN ('completed', 'paid') AND COALESCE(order_type, 'balance') = 'balance' AND amount > 0)
+                ) as total`,
+                [userId, userId]
+            );
+            const totalRecharged = rechargeRow?.total ?? 0;
+            const pages = Math.max(1, Math.ceil(total / pageSize));
+
+            return legacySuccess({
+                items: rows.map((r) => ({
+                    id: r.id,
+                    code: r.code,
+                    type: r.type,
+                    value: r.value,
+                    status: r.status,
+                    notes: r.notes,
+                    usedAt: r.used_at,
+                    used_at: r.used_at,
+                    createdAt: r.created_at,
+                    created_at: r.created_at,
+                })),
+                total,
+                page,
+                page_size: pageSize,
+                pages,
+                total_recharged: totalRecharged,
+            });
+        }
+
         // GET /api/v1/usage/errors/:id
         const errorByIdMatch = USAGE_ERROR_BY_ID_RE.exec(pathname);
         if (errorByIdMatch !== null) {
+            const allowSetting = await firstRow<{ value: string }>(
+                env.DB,
+                "SELECT value FROM settings WHERE key = 'allow_user_view_error_requests'"
+            );
+            if (allowSetting?.value?.trim().toLowerCase() === "false") {
+                return middlewareAuthError(403, "FORBIDDEN", "Viewing error requests is disabled");
+            }
             const id = Number(errorByIdMatch[1]);
             const detail = await svc.getErrorDetail(userId, id);
             return legacySuccess({
@@ -216,6 +358,13 @@ export async function routeStagedUsageUser(
 
         // GET /api/v1/usage/errors
         if (USAGE_ERRORS_RE.test(pathname)) {
+            const allowSetting = await firstRow<{ value: string }>(
+                env.DB,
+                "SELECT value FROM settings WHERE key = 'allow_user_view_error_requests'"
+            );
+            if (allowSetting?.value?.trim().toLowerCase() === "false") {
+                return middlewareAuthError(403, "FORBIDDEN", "Viewing error requests is disabled");
+            }
             const page = parseOptionalInt(url, "page") ?? 1;
             const pageSize = parseOptionalInt(url, "page_size") ?? 20;
             const model = url.searchParams.get("model") ?? undefined;

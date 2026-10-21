@@ -92,8 +92,10 @@ export interface BatchUpdateInput {
     fields: {
         status?: string;
         expiresAt?: string | null;
+        expires_at?: string | null;
         notes?: string | null;
         groupId?: number | null;
+        group_id?: number | null;
     };
 }
 
@@ -272,14 +274,16 @@ export class D1RedeemCodeService {
     async batchUpdate(input: BatchUpdateInput): Promise<{ updated: number }> {
         if (input.ids.length === 0) throw errBadRequest("ids array is required");
         let updated = 0;
+        const expiresAt = input.fields.expiresAt !== undefined ? input.fields.expiresAt : input.fields.expires_at;
+        const groupId = input.fields.groupId !== undefined ? input.fields.groupId : input.fields.group_id;
         for (const id of input.ids) {
             const existing = await this.repo.getById(id);
             if (!existing) continue;
             const updates: Record<string, D1Value> = {};
             if (input.fields.status !== undefined) updates.status = input.fields.status;
-            if (input.fields.expiresAt !== undefined) updates.expires_at = input.fields.expiresAt;
+            if (expiresAt !== undefined) updates.expires_at = expiresAt;
             if (input.fields.notes !== undefined) updates.notes = input.fields.notes;
-            if (input.fields.groupId !== undefined) updates.group_id = input.fields.groupId;
+            if (groupId !== undefined) updates.group_id = groupId;
             if (Object.keys(updates).length > 0) {
                 await this.repo.update(id, updates);
                 updated++;

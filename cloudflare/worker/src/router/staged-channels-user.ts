@@ -213,10 +213,17 @@ export async function routeStagedChannelsUser(
         const userAllowedRows = await env.DB.prepare(
             `SELECT group_id FROM user_allowed_groups WHERE user_id = ?`
         ).bind(auth.userId).all() as { results?: Array<{ group_id: number }> };
-        const allowedGroupIds = new Set((userAllowedRows.results ?? []).map(r => r.group_id));
+        const nowIso = new Date(clock()).toISOString();
+        const userSubRows = await env.DB.prepare(
+            `SELECT group_id FROM user_subscriptions WHERE user_id = ? AND status = 'active' AND deleted_at IS NULL AND expires_at > ?`
+        ).bind(auth.userId, nowIso).all() as { results?: Array<{ group_id: number }> };
+        const allowedGroupIds = new Set([
+            ...(userAllowedRows.results ?? []).map(r => r.group_id),
+            ...(userSubRows.results ?? []).map(r => r.group_id)
+        ]);
 
         const userGroups: UserVisibleGroup[] = allGroups
-            .filter(g => allowedGroupIds.size === 0 || allowedGroupIds.has(g.id))
+            .filter(g => !g.isExclusive || allowedGroupIds.has(g.id))
             .map(g => toUserGroup(g));
 
         const allowedGroupIdSet = new Set(userGroups.map(g => g.id));

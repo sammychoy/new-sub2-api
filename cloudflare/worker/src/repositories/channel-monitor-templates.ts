@@ -226,8 +226,8 @@ export class D1ChannelMonitorTemplateRepository {
             this.#db,
             `UPDATE channel_monitors SET
                 updated_at = ?, api_mode = ?, extra_headers = ?,
-                body_override_mode = ?, body_override = ?
-            WHERE template_id = ? AND id IN (${placeholders})`,
+                body_override_mode = ?, body_override = ?, template_id = ?
+            WHERE id IN (${placeholders})`,
             [
                 now, template.apiMode, JSON.stringify(template.extraHeaders),
                 template.bodyOverrideMode, template.bodyOverride ? JSON.stringify(template.bodyOverride) : null,

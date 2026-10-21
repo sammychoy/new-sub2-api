@@ -110,7 +110,7 @@ export async function routeStagedAnnouncements(
                 content: body.content as string ?? "",
                 status: body.status as string | undefined,
                 notify_mode: body.notify_mode as string | undefined,
-                targeting: body.targeting !== undefined ? JSON.stringify(body.targeting) : undefined,
+                targeting: body.targeting === null ? "{}" : typeof body.targeting === "string" ? body.targeting : body.targeting !== undefined ? JSON.stringify(body.targeting) : undefined,
                 starts_at: body.starts_at as string | null | undefined,
                 ends_at: body.ends_at as string | null | undefined,
                 created_by: auth.userId
@@ -152,7 +152,7 @@ export async function routeStagedAnnouncements(
                 content: body.content as string | undefined,
                 status: body.status as string | undefined,
                 notify_mode: body.notify_mode as string | undefined,
-                targeting: body.targeting !== undefined ? JSON.stringify(body.targeting) : undefined,
+                targeting: body.targeting === null ? "{}" : typeof body.targeting === "string" ? body.targeting : body.targeting !== undefined ? JSON.stringify(body.targeting) : undefined,
                 starts_at: body.starts_at as string | null | undefined,
                 ends_at: body.ends_at as string | null | undefined,
                 updated_by: auth.userId

@@ -480,9 +480,10 @@ export class D1OpsRepositoryImpl implements D1OpsRepository {
     }
 
     async getEmailNotificationConfig(): Promise<OpsEmailNotificationConfig> {
+        const defaults: OpsEmailNotificationConfig = { enabled: false, recipients: [], alertTypes: [], throttleMinutes: 60 };
         const row = await firstRow<{ value: string }>(this.#db, "SELECT value FROM settings WHERE key = ?", ["ops_email_notification_config"]);
-        if (!row) return { enabled: false, recipients: [], alertTypes: [], throttleMinutes: 60 };
-        return JSON.parse(row.value) as OpsEmailNotificationConfig;
+        if (!row) return defaults;
+        try { return JSON.parse(row.value) as OpsEmailNotificationConfig; } catch { return defaults; }
     }
     async updateEmailNotificationConfig(config: OpsEmailNotificationConfig): Promise<boolean> {
         const now = new Date().toISOString();
@@ -490,9 +491,10 @@ export class D1OpsRepositoryImpl implements D1OpsRepository {
         return (result.meta?.changes ?? 0) > 0;
     }
     async getAlertRuntimeSettings(): Promise<OpsRuntimeAlertSettings> {
+        const defaults: OpsRuntimeAlertSettings = { checkIntervalMinutes: 5, evaluationWindowMinutes: 10, maxConcurrentAlerts: 100 };
         const row = await firstRow<{ value: string }>(this.#db, "SELECT value FROM settings WHERE key = ?", ["ops_alert_runtime_settings"]);
-        if (!row) return { checkIntervalMinutes: 5, evaluationWindowMinutes: 10, maxConcurrentAlerts: 100 };
-        return JSON.parse(row.value) as OpsRuntimeAlertSettings;
+        if (!row) return defaults;
+        try { return JSON.parse(row.value) as OpsRuntimeAlertSettings; } catch { return defaults; }
     }
     async updateAlertRuntimeSettings(settings: OpsRuntimeAlertSettings): Promise<boolean> {
         const now = new Date().toISOString();
@@ -500,9 +502,10 @@ export class D1OpsRepositoryImpl implements D1OpsRepository {
         return (result.meta?.changes ?? 0) > 0;
     }
     async getRuntimeLogConfig(): Promise<OpsRuntimeLogConfig> {
+        const defaults: OpsRuntimeLogConfig = { level: "info", components: [], retentionDays: 30, samplingRate: 1.0 };
         const row = await firstRow<{ value: string }>(this.#db, "SELECT value FROM settings WHERE key = ?", ["ops_runtime_log_config"]);
-        if (!row) return { level: "info", components: [], retentionDays: 30, samplingRate: 1.0 };
-        return JSON.parse(row.value) as OpsRuntimeLogConfig;
+        if (!row) return defaults;
+        try { return JSON.parse(row.value) as OpsRuntimeLogConfig; } catch { return defaults; }
     }
     async updateRuntimeLogConfig(config: OpsRuntimeLogConfig): Promise<boolean> {
         const now = new Date().toISOString();
@@ -516,9 +519,10 @@ export class D1OpsRepositoryImpl implements D1OpsRepository {
         return (result.meta?.changes ?? 0) > 0;
     }
     async getAdvancedSettings(): Promise<OpsAdvancedSettings> {
+        const defaults: OpsAdvancedSettings = { featureFlags: {}, experimentalFeatures: {} };
         const row = await firstRow<{ value: string }>(this.#db, "SELECT value FROM settings WHERE key = ?", ["ops_advanced_settings"]);
-        if (!row) return { featureFlags: {}, experimentalFeatures: {} };
-        return JSON.parse(row.value) as OpsAdvancedSettings;
+        if (!row) return defaults;
+        try { return JSON.parse(row.value) as OpsAdvancedSettings; } catch { return defaults; }
     }
     async updateAdvancedSettings(settings: OpsAdvancedSettings): Promise<boolean> {
         const now = new Date().toISOString();
@@ -526,9 +530,10 @@ export class D1OpsRepositoryImpl implements D1OpsRepository {
         return (result.meta?.changes ?? 0) > 0;
     }
     async getMetricThresholds(): Promise<OpsMetricThresholds> {
+        const defaults: OpsMetricThresholds = { errorRatePct: 5, latencyP95Ms: 2000, latencyP99Ms: 5000, queueDepth: 100, cpuUsagePct: 85, memoryUsagePct: 90 };
         const row = await firstRow<{ value: string }>(this.#db, "SELECT value FROM settings WHERE key = ?", ["ops_metric_thresholds"]);
-        if (!row) return { errorRatePct: 5, latencyP95Ms: 2000, latencyP99Ms: 5000, queueDepth: 100, cpuUsagePct: 85, memoryUsagePct: 90 };
-        return JSON.parse(row.value) as OpsMetricThresholds;
+        if (!row) return defaults;
+        try { return JSON.parse(row.value) as OpsMetricThresholds; } catch { return defaults; }
     }
     async updateMetricThresholds(thresholds: OpsMetricThresholds): Promise<boolean> {
         const now = new Date().toISOString();

@@ -294,14 +294,24 @@ export async function routeStagedApiKeys(
         }
 
         if (path === AVAILABLE_GROUPS_PATH && request.method === "GET") {
+            const nowIso = new Date(clock()).toISOString();
             const available = await allRows<Record<string, unknown>>(
                 env.DB,
                 `SELECT g.* FROM groups g
                  LEFT JOIN user_allowed_groups uag ON g.id = uag.group_id AND uag.user_id = ?
                  WHERE g.deleted_at IS NULL AND g.status = 'active'
-                   AND (g.is_exclusive = 0 OR uag.user_id IS NOT NULL OR ? = 'admin')
+                   AND (
+                       g.is_exclusive = 0
+                       OR uag.user_id IS NOT NULL
+                       OR EXISTS (
+                           SELECT 1 FROM user_subscriptions us
+                           WHERE us.user_id = ? AND us.group_id = g.id
+                             AND us.status = 'active' AND us.deleted_at IS NULL AND us.expires_at > ?
+                       )
+                       OR ? = 'admin'
+                   )
                  ORDER BY g.sort_order, g.name`,
-                [auth.userId, auth.role]
+                [auth.userId, auth.userId, nowIso, auth.role]
             );
             return legacySuccess(available.map(formatGroupForClient));
         }
@@ -331,7 +341,17 @@ export async function routeStagedApiKeys(
                 }
                 const adminRepo = new D1ApiKeyRepository(env.DB);
                 const updated = await adminRepo.update(targetId, 0, {
-                    groupId: optionalNumber(body, "group_id"),
+                    name: optionalString(body, "name"),
+                    groupId: body.group_id === null ? null : optionalNumber(body, "group_id"),
+                    status: optionalString(body, "status"),
+                    ipWhitelist: optionalStringArray(body, "ip_whitelist"),
+                    ipBlacklist: optionalStringArray(body, "ip_blacklist"),
+                    quota: optionalNumber(body, "quota"),
+                    expiresAt: body.expires_at === null ? null : optionalString(body, "expires_at"),
+                    rateLimit5h: optionalNumber(body, "rate_limit_5h"),
+                    rateLimit1d: optionalNumber(body, "rate_limit_1d"),
+                    rateLimit7d: optionalNumber(body, "rate_limit_7d"),
+                    resetQuota: optionalBoolean(body, "reset_quota"),
                     resetRateLimits: optionalBoolean(body, "reset_rate_limits")
                 });
                 if (updated === null) {

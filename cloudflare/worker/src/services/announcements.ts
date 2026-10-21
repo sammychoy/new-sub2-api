@@ -233,7 +233,10 @@ export class D1AnnouncementService {
 
         const announcements = await this.#repository.listActive(now);
         const visible = announcements.filter(a => {
-            const targeting: AnnouncementTargeting | null = a.targeting ? JSON.parse(a.targeting) : null;
+            let targeting: AnnouncementTargeting | null = null;
+            if (a.targeting) {
+                try { targeting = JSON.parse(a.targeting); } catch { targeting = null; }
+            }
             return evaluateTargeting(targeting, user.balance, activeGroupIds);
         });
 
@@ -299,7 +302,10 @@ export class D1AnnouncementService {
         const subscriptions = await subRepo.listActiveByUser(userId);
         const activeGroupIds = new Set(subscriptions.map(s => s.groupId));
 
-        const targeting: AnnouncementTargeting | null = announcement.targeting ? JSON.parse(announcement.targeting) : null;
+        let targeting: AnnouncementTargeting | null = null;
+        if (announcement.targeting) {
+            try { targeting = JSON.parse(announcement.targeting); } catch { targeting = null; }
+        }
         if (!evaluateTargeting(targeting, user.balance, activeGroupIds)) {
             throw new AnnouncementError("announcement_not_found", 404, "Announcement not found");
         }

@@ -294,6 +294,9 @@ export async function routeStagedAdminUserRoutes(
         // DELETE /admin/users/:id
         if (idMatch !== null && method === "DELETE") {
             const id = Number(idMatch[1]);
+            if (id === auth.userId) {
+                return legacyError(400, "Cannot delete your own account", "CANNOT_DELETE_SELF");
+            }
             await svc.deleteUser(id);
             return legacySuccess({ message: "User deleted successfully" });
         }

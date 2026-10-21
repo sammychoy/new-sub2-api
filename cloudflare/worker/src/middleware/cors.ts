@@ -131,6 +131,17 @@ export function buildCORSHeaders(
 }
 
 /**
+ * Check if wildcard (*) origin is enabled in CORS config.
+ */
+export function isWildcardAllowed(env: CORSEnv): boolean {
+    const configuredOrigins = env.CORS_ALLOWED_ORIGINS;
+    if (!configuredOrigins || configuredOrigins.trim() === "") {
+        return false;
+    }
+    return normalizeOrigins(configuredOrigins).includes("*");
+}
+
+/**
  * Check if the given origin is allowed by CORS config.
  */
 export function isOriginAllowed(origin: string, env: CORSEnv): boolean {

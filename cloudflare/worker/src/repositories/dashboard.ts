@@ -214,11 +214,27 @@ export class D1DashboardRepositoryImpl implements D1DashboardRepository {
         return { start: start.toISOString(), end: now.toISOString() };
     }
 
+    private parseDateInput(value?: string, isEndOfDay = false): Date | null {
+        const trimmed = value?.trim();
+        if (!trimmed) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            const d = new Date(`${trimmed}T00:00:00.000Z`);
+            if (Number.isNaN(d.getTime())) return null;
+            return isEndOfDay ? new Date(d.getTime() + 24 * 60 * 60 * 1000) : d;
+        }
+        const d = new Date(trimmed);
+        if (Number.isNaN(d.getTime())) return null;
+        return d;
+    }
+
     private resolveDateRange(startDate?: string, endDate?: string, fallbackPeriod?: string): { start: string; end: string } {
-        if (startDate && endDate) {
-            const start = new Date(`${startDate}T00:00:00.000Z`);
-            const endMs = new Date(`${endDate}T00:00:00.000Z`).getTime() + 24 * 60 * 60 * 1000;
-            return { start: start.toISOString(), end: new Date(endMs).toISOString() };
+        const start = this.parseDateInput(startDate, false);
+        const end = this.parseDateInput(endDate, true);
+        if (start && end) {
+            const endIso = end.getTime() <= start.getTime()
+                ? new Date(start.getTime() + 24 * 60 * 60 * 1000).toISOString()
+                : end.toISOString();
+            return { start: start.toISOString(), end: endIso };
         }
         return this.parsePeriod(fallbackPeriod ?? "day");
     }
@@ -395,7 +411,8 @@ export class D1DashboardRepositoryImpl implements D1DashboardRepository {
         const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
         const logs = await allRows<{
             model: string; created_at: string; duration_ms: number | null;
-        }>(this.#db, `SELECT model, created_at, duration_ms FROM usage_logs WHERE created_at >= ? ORDER BY created_at DESC LIMIT 1000`, [fiveMinAgo]);
+            input_tokens: number | null; output_tokens: number | null;
+        }>(this.#db, `SELECT model, created_at, duration_ms, input_tokens, output_tokens FROM usage_logs WHERE created_at >= ? ORDER BY created_at DESC LIMIT 1000`, [fiveMinAgo]);
 
         const total = logs.length;
         const latencies = logs.map((l) => l.duration_ms).filter((l): l is number => l !== null).sort((a, b) => a - b);
@@ -404,7 +421,7 @@ export class D1DashboardRepositoryImpl implements D1DashboardRepository {
 
         return {
             qps: total / 300,
-            tps: logs.reduce((sum, l) => sum + (l.duration_ms ?? 0), 0) / 300,
+            tps: logs.reduce((sum, l) => sum + (l.input_tokens ?? 0) + (l.output_tokens ?? 0), 0) / 300,
             concurrentUsers: total,
             activeRequests: 0,
             latencyP50: latencies[Math.floor(latencies.length * 0.5)] ?? 0,
@@ -576,8 +593,7 @@ export class D1DashboardRepositoryImpl implements D1DashboardRepository {
     }
 
     async getUserUsageTrend(startDate: string, endDate: string, granularity: string, limit: number): Promise<UserUsageTrendPoint[]> {
-        const start = new Date(`${startDate}T00:00:00.000Z`).toISOString();
-        const end = new Date(new Date(`${endDate}T00:00:00.000Z`).getTime() + 24 * 60 * 60 * 1000).toISOString();
+        const { start, end } = this.resolveDateRange(startDate, endDate, granularity === "hour" ? "day" : "week");
         const bucketExpr = granularity === "hour"
             ? "strftime('%Y-%m-%dT%H:00:00Z', u.created_at)"
             : "strftime('%Y-%m-%d', u.created_at)";
@@ -751,10 +767,12 @@ export class D1DashboardRepositoryImpl implements D1DashboardRepository {
         const start = new Date(from);
         const end = new Date(to);
         const current = new Date(start);
+        const seenDates = new Set<string>();
 
         while (current <= end) {
             const bucketStart = current.toISOString();
             const bucketDate = current.toISOString().split("T")[0];
+            seenDates.add(bucketDate);
             const nextHour = new Date(current.getTime() + 60 * 60 * 1000);
 
             const hourlyAgg = await firstRow<{
@@ -799,6 +817,51 @@ export class D1DashboardRepositoryImpl implements D1DashboardRepository {
             }
 
             current.setTime(current.getTime() + 60 * 60 * 1000);
+        }
+
+        for (const bucketDate of seenDates) {
+            const dayStart = new Date(`${bucketDate}T00:00:00.000Z`);
+            const nextDay = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+            const dailyAgg = await firstRow<{
+                total_requests: number; input_tokens: number; output_tokens: number;
+                cache_creation_tokens: number; cache_read_tokens: number; total_cost: number; actual_cost: number;
+                total_duration_ms: number; active_users: number; account_cost: number;
+            }>(this.#db,
+                `SELECT COUNT(*) as total_requests,
+                        COALESCE(SUM(input_tokens), 0) as input_tokens, COALESCE(SUM(output_tokens), 0) as output_tokens,
+                        COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens, COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+                        COALESCE(SUM(total_cost), 0) as total_cost, COALESCE(SUM(actual_cost), 0) as actual_cost,
+                        COALESCE(SUM(duration_ms), 0) as total_duration_ms,
+                        COUNT(DISTINCT user_id) as active_users,
+                        COALESCE(SUM(COALESCE(account_stats_cost, total_cost * COALESCE(account_rate_multiplier, 1))), 0) as account_cost
+                 FROM usage_logs
+                 WHERE created_at >= ? AND created_at < ?`,
+                [dayStart.toISOString(), nextDay.toISOString()]
+            );
+
+            if (dailyAgg && dailyAgg.total_requests > 0) {
+                await runStatement(
+                    this.#db,
+                    `INSERT INTO usage_dashboard_daily (bucket_date, total_requests, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, total_cost, actual_cost, total_duration_ms, active_users, account_cost, computed_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                     ON CONFLICT(bucket_date) DO UPDATE SET
+                        total_requests = excluded.total_requests,
+                        input_tokens = excluded.input_tokens,
+                        output_tokens = excluded.output_tokens,
+                        cache_creation_tokens = excluded.cache_creation_tokens,
+                        cache_read_tokens = excluded.cache_read_tokens,
+                        total_cost = excluded.total_cost,
+                        actual_cost = excluded.actual_cost,
+                        total_duration_ms = excluded.total_duration_ms,
+                        active_users = excluded.active_users,
+                        account_cost = excluded.account_cost,
+                        computed_at = excluded.computed_at`,
+                    [bucketDate, dailyAgg.total_requests, dailyAgg.input_tokens, dailyAgg.output_tokens,
+                        dailyAgg.cache_creation_tokens, dailyAgg.cache_read_tokens, dailyAgg.total_cost,
+                        dailyAgg.actual_cost, dailyAgg.total_duration_ms, dailyAgg.active_users, dailyAgg.account_cost]
+                );
+            }
         }
 
         return { processed };

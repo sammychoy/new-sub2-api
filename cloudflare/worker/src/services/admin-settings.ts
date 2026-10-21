@@ -200,6 +200,26 @@ const SUBSCRIPTION_ARRAY_KEYS = new Set([
     "auth_source_default_dingtalk_subscriptions"
 ]);
 
+const SECRET_KEYS: Record<string, string> = {
+    smtp_password: "smtp_password_configured",
+    turnstile_secret_key: "turnstile_secret_key_configured",
+    linuxdo_connect_client_secret: "linuxdo_connect_client_secret_configured",
+    oidc_connect_client_secret: "oidc_connect_client_secret_configured",
+    dingtalk_connect_client_secret: "dingtalk_connect_client_secret_configured",
+    wechat_app_secret: "wechat_connect_app_secret_configured",
+    wechat_connect_app_secret: "wechat_connect_app_secret_configured",
+    wechat_connect_open_app_secret: "wechat_connect_open_app_secret_configured",
+    wechat_connect_mp_app_secret: "wechat_connect_mp_app_secret_configured",
+    wechat_connect_mobile_app_secret: "wechat_connect_mobile_app_secret_configured",
+    github_oauth_client_secret: "github_oauth_client_secret_configured",
+    google_oauth_client_secret: "google_oauth_client_secret_configured",
+    admin_api_key: "admin_api_key_configured",
+};
+
+function isInternalEphemeralSettingKey(key: string): boolean {
+    return key.startsWith("oauth_session:") || key === "backup_records" || key === "backup_s3_config";
+}
+
 function trimIfString(value: unknown): unknown {
     return typeof value === "string" ? value.trim() : value;
 }
@@ -268,11 +288,20 @@ export class D1AdminSettingsService {
         const updates: Record<string, string> = {};
 
         for (const [rawKey, rawValue] of Object.entries(input)) {
-            if (rawKey === "updated_at" || rawKey === "created_at" || rawKey === "totp_encryption_key_configured") {
+            if (
+                rawKey === "updated_at" ||
+                rawKey === "created_at" ||
+                rawKey.endsWith("_configured") ||
+                isInternalEphemeralSettingKey(rawKey)
+            ) {
                 continue;
             }
 
             const value = trimIfString(rawValue);
+
+            if (rawKey in SECRET_KEYS && (value === "" || value === null || value === undefined)) {
+                continue;
+            }
 
             if (BOOLEAN_KEYS.has(rawKey)) {
                 updates[rawKey] = value === true || value === "true" ? "true" : "false";
@@ -360,7 +389,19 @@ export class D1AdminSettingsService {
         const raw = await this.#settings.getAll();
         const result: Record<string, unknown> = {};
 
+        for (const configuredFlag of Object.values(SECRET_KEYS)) {
+            result[configuredFlag] = false;
+        }
+
         for (const [key, value] of Object.entries(raw)) {
+            if (isInternalEphemeralSettingKey(key)) {
+                continue;
+            }
+            if (key in SECRET_KEYS) {
+                const flagKey = SECRET_KEYS[key];
+                result[flagKey] = Boolean(result[flagKey]) || (typeof value === "string" && value.trim() !== "");
+                continue;
+            }
             if (BOOLEAN_KEYS.has(key)) {
                 result[key] = value === "true";
             } else if (INTEGER_KEYS.has(key)) {

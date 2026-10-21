@@ -235,7 +235,7 @@ export class D1ApiKeyRepository {
     }
 
     async update(id: number, userId: number, input: UpdateApiKeyInput): Promise<ApiKeyRecord | null> {
-        const existing = await this.findById(id, userId);
+        const existing = await this.findById(id, userId > 0 ? userId : undefined);
         if (existing === null) return null;
 
         const now = new Date().toISOString();
@@ -303,14 +303,46 @@ export class D1ApiKeyRepository {
 
         if (sets.length === 1) return existing;
 
-        values.push(id, userId);
-        await runStatement(
-            this.#db,
-            `UPDATE api_keys SET ${sets.join(", ")} WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
-            values
-        );
+        if (userId > 0) {
+            values.push(id, userId);
+            await runStatement(
+                this.#db,
+                `UPDATE api_keys SET ${sets.join(", ")} WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+                values
+            );
+        } else {
+            values.push(id);
+            await runStatement(
+                this.#db,
+                `UPDATE api_keys SET ${sets.join(", ")} WHERE id = ? AND deleted_at IS NULL`,
+                values
+            );
+        }
 
         return this.findById(id);
+    }
+
+    async isGroupAllowedForUser(userId: number, groupId: number): Promise<boolean> {
+        const group = await firstRow<{ id: number; is_exclusive: number; status: string }>(
+            this.#db,
+            "SELECT id, is_exclusive, status FROM groups WHERE id = ? AND deleted_at IS NULL",
+            [groupId]
+        );
+        if (group === null) return true;
+        if (group.status !== "active") return false;
+        if (!group.is_exclusive) return true;
+
+        const now = new Date().toISOString();
+        const allowed = await firstRow<{ ok: number }>(
+            this.#db,
+            `SELECT 1 AS ok FROM user_allowed_groups WHERE user_id = ? AND group_id = ?
+             UNION ALL
+             SELECT 1 AS ok FROM user_subscriptions
+             WHERE user_id = ? AND group_id = ? AND status = 'active' AND deleted_at IS NULL AND expires_at > ?
+             LIMIT 1`,
+            [userId, groupId, userId, groupId, now]
+        );
+        return allowed !== null;
     }
 
     async delete(id: number, userId: number): Promise<boolean> {

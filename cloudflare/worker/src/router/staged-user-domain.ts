@@ -145,8 +145,8 @@ export async function routeStagedUserDomain(
         return null;
     }
     if (
-        request.method === "GET"
-        && (adminMatch !== null || path === STAGED_USER_DOMAIN_PATHS.adminUsers)
+        (request.method === "GET" && (adminMatch !== null || path === STAGED_USER_DOMAIN_PATHS.adminUsers))
+        || (request.method === "DELETE" && adminMatch !== null)
     ) {
         return null;
     }

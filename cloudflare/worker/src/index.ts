@@ -1,4 +1,4 @@
-import { type CORSEnv, buildCORSHeaders, isOriginAllowed } from "./middleware/cors.ts";
+import { type CORSEnv, buildCORSHeaders, isOriginAllowed, isWildcardAllowed } from "./middleware/cors.ts";
 import { routePublicSettings, type PublicSettingsEnv } from "./router/public-settings.ts";
 import { jsonResponse, ROUTER_RESPONSE_HEADER, routerError } from "./router/responses.ts";
 import { routeSetupStatus, type SetupStatusEnv } from "./router/setup-status.ts";
@@ -140,7 +140,7 @@ function addCORSHeaders(response: Response, request: Request, env: Env): Respons
     if (!isOriginAllowed(origin, env)) {
         return response;
     }
-    const allowAll = env.CORS_ALLOWED_ORIGINS?.includes("*") ?? false;
+    const allowAll = isWildcardAllowed(env);
     const newHeaders = new Headers(response.headers);
     const corsHeaders = buildCORSHeaders(origin, allowAll, true);
     if (corsHeaders instanceof Headers) {
@@ -182,7 +182,7 @@ export async function routeRequest(request: Request, env: Env): Promise<Response
         if (isOriginAllowed(origin, env)) {
             return new Response(null, {
                 status: 204,
-                headers: buildCORSHeaders(origin, env.CORS_ALLOWED_ORIGINS?.includes("*") ?? false, true),
+                headers: buildCORSHeaders(origin, isWildcardAllowed(env), true),
             });
         }
         // If origin not allowed or no CORS config, fall through to normal routing
@@ -214,8 +214,8 @@ export async function routeRequest(request: Request, env: Env): Promise<Response
 
     // D1-native staged routes: authentication, security, user domain, OAuth providers
     const stagedResponse = await routeStagedAuth(request, env)
-        ?? await routeStagedSecurity(request, env)
         ?? await routeStagedUserDomain(request, env)
+        ?? await routeStagedSecurity(request, env)
         ?? await routeStagedAdminUserRoutes(request, env)
         ?? await routeStagedPendingOAuth(request, env)
         ?? await routeStagedLinuxDoOAuth(request, env)
