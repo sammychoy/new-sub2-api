@@ -1,6 +1,9 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="Sub2API on Cloudflare" width="100%">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg">
+  <img src="assets/banner-light.svg" alt="Sub2API on Cloudflare" width="100%">
+</picture>
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
