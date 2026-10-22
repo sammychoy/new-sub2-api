@@ -129,7 +129,11 @@ npx wrangler deploy
 
 ## Disclaimer
 
-Using this project may break the terms of service of upstream providers such as Anthropic, OpenAI and Google. It is shared for learning and research, and you use it at your own risk and within the law where you live. The authors take no responsibility for any loss.
+1. **For Educational & Research Purposes Only**: This project is provided strictly for technical research, architectural learning (Cloudflare Workers & D1), and personal testing. It does not encourage, endorse, or facilitate any commercial resale or violation of third-party terms.
+2. **Third-Party Terms of Service & Account Risks**: Connecting to or pooling accounts from upstream providers (including but not limited to OpenAI, Anthropic, Google, xAI, and DeepSeek) may violate their respective Terms of Service (ToS) or Acceptable Use Policies. Users assume full responsibility for any resulting account suspension, termination, quota revocation, or legal consequences.
+3. **No Official Affiliation**: This project is an independent open-source port and is not affiliated with, endorsed by, or sponsored by Cloudflare, OpenAI, Anthropic, Google, xAI, DeepSeek, Stripe, Airwallex, or any other mentioned entity.
+4. **Legal, Payment & Regulatory Compliance**: Built-in billing and payment modules are provided solely as technical reference implementations. Anyone deploying this software is solely responsible for complying with all applicable local laws and regulations (including data privacy, telecommunications, business licensing, payment processing, anti-money laundering, and tax laws).
+5. **No Warranty & Limitation of Liability**: This software is provided **"AS IS"**, without warranty of any kind, express or implied, including but not limited to accuracy of billing, security, availability, or fitness for a particular purpose. Under no circumstances shall the authors, maintainers, or contributors be liable for any direct, indirect, incidental, financial, or legal damages arising from the use or misuse of this project. By downloading, deploying, or using this software, you agree to assume all associated risks.
 
 ## License
 
