@@ -50,7 +50,20 @@ function parseOptionalInt(url: URL, key: string): number | undefined {
 }
 
 export function isAdminUserRoutesPath(path: string): boolean {
-    return path.startsWith("/api/v1/admin/users");
+    return (
+        USERS_RE.test(path) ||
+        USER_ID_RE.test(path) ||
+        USER_BALANCE_RE.test(path) ||
+        USER_USAGE_RE.test(path) ||
+        USER_BALANCE_HISTORY_RE.test(path) ||
+        BATCH_CONCURRENCY_RE.test(path) ||
+        USER_PLATFORM_QUOTAS_RE.test(path) ||
+        USER_PLATFORM_QUOTAS_RESET_RE.test(path) ||
+        USER_AUTH_IDENTITIES_RE.test(path) ||
+        USER_API_KEYS_RE.test(path) ||
+        USER_REPLACE_GROUP_RE.test(path) ||
+        USER_RPM_STATUS_RE.test(path)
+    );
 }
 
 async function authenticateAdmin(request: Request, env: StagedAdminUserRoutesEnv, clock: () => number): Promise<{ userId: number; role: string }> {

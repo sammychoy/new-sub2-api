@@ -414,7 +414,7 @@ export class D1AdminSettingsService {
                 try {
                     result[key] = JSON.parse(value || "[]");
                 } catch {
-                    result[key] = [];
+                    result[key] = value ? value.split(",").map(s => s.trim()).filter(Boolean) : [];
                 }
             } else if (JSON_OBJECT_KEYS.has(key)) {
                 try {

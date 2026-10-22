@@ -285,8 +285,9 @@ export async function routeStagedDashboard(
 
         return routerError(405, "method_not_allowed", "Method not allowed for this dashboard route");
     } catch (error: unknown) {
-if (error instanceof AccessAuthError) return middlewareAuthError(401, error.code, error.message);
+        if (error instanceof AccessAuthError) return middlewareAuthError(401, error.code, error.message);
         if (error instanceof DashboardError) return legacyError(error.status, error.message, error.code);
+        if (error instanceof Error && error.message === "User not found") return legacyError(404, error.message, "USER_NOT_FOUND");
         console.error("Dashboard error:", error);
         return legacyInternalError();
     }

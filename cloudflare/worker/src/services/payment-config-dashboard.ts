@@ -81,8 +81,18 @@ export class D1PaymentConfigDashboardService {
         const getNum = (k: string, def: number): number => map.has(k) ? Number(map.get(k)) : def;
         const getStr = (k: string, def: string): string => map.get(k) ?? def;
 
-        const typesStr = getStr("payment_enabled_types", "");
-        const enabledTypes = typesStr ? typesStr.split(",").map(s => s.trim()).filter(Boolean) : [];
+        const typesStr = getStr("payment_enabled_types", "").trim();
+        let enabledTypes: string[] = [];
+        if (typesStr.startsWith("[")) {
+            try {
+                const parsed = JSON.parse(typesStr);
+                if (Array.isArray(parsed)) enabledTypes = parsed.map(String).map(s => s.trim()).filter(Boolean);
+            } catch {
+                enabledTypes = [];
+            }
+        } else if (typesStr) {
+            enabledTypes = typesStr.split(",").map(s => s.trim()).filter(Boolean);
+        }
 
         return {
             enabled: getBool("payment_enabled", false),

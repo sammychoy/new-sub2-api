@@ -14,7 +14,7 @@ import {
 } from "./responses.ts";
 
 const OPENAI_BASE = "/api/v1/admin/openai";
-const GEMINI_BASE = "/api/v1/admin/gemini";
+const GEMINI_BASE = "/api/v1/admin/gemini/oauth";
 const ANTIGRAVITY_BASE = "/api/v1/admin/antigravity";
 const GROK_BASE = "/api/v1/admin/grok";
 
