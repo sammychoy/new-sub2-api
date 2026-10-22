@@ -7,7 +7,7 @@
 
 **English** · [繁體中文](README.zh-TW.md) · [简体中文](README.zh-CN.md)
 
-[![License](https://img.shields.io/badge/License-LGPL--3.0-blue?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![D1](https://img.shields.io/badge/Cloudflare-D1-F38020?style=flat-square&logo=sqlite&logoColor=white)
 ![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)
@@ -133,4 +133,4 @@ Using this project may break the terms of service of upstream providers such as 
 
 ## License
 
-[LGPL-3.0](LICENSE). Based on sub2api, Copyright (c) 2026 Wesley Liddick.
+[AGPL-3.0](LICENSE). Based on sub2api, Copyright (c) 2026 Wesley Liddick.

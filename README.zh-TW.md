@@ -7,7 +7,7 @@
 
 [English](README.md) · **繁體中文** · [简体中文](README.zh-CN.md)
 
-[![License](https://img.shields.io/badge/License-LGPL--3.0-blue?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?style=flat-square&logo=cloudflare&logoColor=white)
 ![D1](https://img.shields.io/badge/Cloudflare-D1-F38020?style=flat-square&logo=sqlite&logoColor=white)
 ![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)
@@ -133,4 +133,4 @@ npx wrangler deploy
 
 ## 授權
 
-[LGPL-3.0](LICENSE)。基於 sub2api，Copyright (c) 2026 Wesley Liddick。
+[AGPL-3.0](LICENSE)。基於 sub2api，Copyright (c) 2026 Wesley Liddick。
